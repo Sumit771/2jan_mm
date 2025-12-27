@@ -1,5 +1,5 @@
 // src/components/EditorView.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -13,6 +13,15 @@ import {
     Button,
     CircularProgress,
     Alert,
+    Tabs,
+    Tab,
+    TextField,
+    InputAdornment,
+    TablePagination,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from '@mui/material';
 import {
     Pending as PendingIcon,
@@ -20,6 +29,7 @@ import {
     Download as DownloadIcon,
     Visibility as VisibilityIcon,
     Lock as LockIcon,
+    Search as SearchIcon,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -125,9 +135,67 @@ const StatCard = ({ title, value, icon, color }) => (
 
 const EditorView = () => {
     const { orders, loading } = useOrders();
+    const [timeFilter, setTimeFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [sortBy, setSortBy] = useState('dateDesc');
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(9);
 
-    const sortedOrders = [...orders].sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+    const sortedOrders = [...orders].sort((a, b) => {
+        const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
 
+        if (sortBy === 'dateAsc') {
+            return dateA - dateB;
+        } else if (sortBy === 'status') {
+            const statusOrder = { 'pending': 1, 'in-progress': 2, 'completed': 3 };
+            return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+        }
+        // Default dateDesc
+        return dateB - dateA;
+    });
+
+    const filteredOrders = sortedOrders.filter(order => {
+        // Search Filter
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const nameMatch = order.name?.toLowerCase().includes(query);
+            const telecallerMatch = order.telecaller?.toLowerCase().includes(query);
+            if (!nameMatch && !telecallerMatch) return false;
+        }
+
+        if (!order.createdAt) return false;
+        const orderDate = order.createdAt.toDate();
+
+        // Custom Date Range
+        if (startDate || endDate) {
+            if (startDate && orderDate < new Date(startDate + "T00:00:00")) return false;
+            if (endDate && orderDate > new Date(endDate + "T23:59:59")) return false;
+            return true;
+        }
+
+        // Tab Filter
+        if (timeFilter === 'all') return true;
+        if (typeof timeFilter === 'number') {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - timeFilter);
+            return orderDate >= cutoff;
+        }
+        return true;
+    });
+
+    const paginatedOrders = filteredOrders.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+    const handleChangePage = (event, newPage) => {
+        setPage(newPage);
+    };
+
+    const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+    };
 
     const handleStatusChange = async (orderId, currentStatus, newStatus) => {
         if (currentStatus === newStatus) return;
@@ -196,11 +264,94 @@ const EditorView = () => {
                 </Grid>
             </Grid>
 
-            {sortedOrders.length === 0 ? (
-                <Alert severity="info" sx={{ mt: 4 }}>You have no assigned orders.</Alert>
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <TextField
+                    label="Search by Client or Telecaller"
+                    variant="outlined"
+                    size="small"
+                    value={searchQuery}
+                    onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setPage(0);
+                    }}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon color="action" />
+                            </InputAdornment>
+                        ),
+                    }}
+                    sx={{ flexGrow: 1, minWidth: '250px', bgcolor: 'white', borderRadius: 1 }}
+                />
+                <TextField
+                    label="Start Date"
+                    type="date"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={startDate}
+                    onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setTimeFilter('custom');
+                        setPage(0);
+                    }}
+                    sx={{ bgcolor: 'white', borderRadius: 1 }}
+                />
+                <TextField
+                    label="End Date"
+                    type="date"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={endDate}
+                    onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setTimeFilter('custom');
+                        setPage(0);
+                    }}
+                    sx={{ bgcolor: 'white', borderRadius: 1 }}
+                />
+                <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white', borderRadius: 1 }}>
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
+                        value={sortBy}
+                        label="Sort By"
+                        onChange={(e) => {
+                            setSortBy(e.target.value);
+                            setPage(0);
+                        }}
+                    >
+                        <MenuItem value="dateDesc">Newest First</MenuItem>
+                        <MenuItem value="dateAsc">Oldest First</MenuItem>
+                        <MenuItem value="status">Status</MenuItem>
+                    </Select>
+                </FormControl>
+            </Box>
+
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+                <Tabs
+                    value={timeFilter}
+                    onChange={(e, v) => {
+                        setTimeFilter(v);
+                        setStartDate('');
+                        setEndDate('');
+                        setPage(0);
+                    }}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                >
+                    <Tab label="All Orders" value="all" />
+                    <Tab label="Last 3 Days" value={3} />
+                    <Tab label="Last 7 Days" value={7} />
+                    <Tab label="Last 30 Days" value={30} />
+                </Tabs>
+            </Box>
+
+            {filteredOrders.length === 0 ? (
+                <Alert severity="info" sx={{ mt: 4 }}>
+                    {orders.length === 0 ? "You have no assigned orders." : "No orders found for the selected time range."}
+                </Alert>
             ) : (
-                <Grid container spacing={3}>
-                    {sortedOrders.map((order) => (
+                <Grid container spacing={3} sx={{ mb: 4 }}>
+                    {paginatedOrders.map((order) => (
                         <Grid item xs={12} md={6} lg={4} key={order.id}>
                             <Card
                                 sx={{
@@ -278,6 +429,16 @@ const EditorView = () => {
                     ))}
                 </Grid>
             )}
+
+            <TablePagination
+                rowsPerPageOptions={[9, 18, 27, 45]}
+                component="div"
+                count={filteredOrders.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+            />
         </Box>
     );
 };

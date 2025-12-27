@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -7,7 +7,8 @@ import {
   Paper,
   CircularProgress,
   Chip,
-  Fade
+  Fade,
+  IconButton
 } from '@mui/material';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -21,6 +22,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const STATUS_CONFIG = {
   Pending: {
@@ -42,12 +44,14 @@ const STATUS_CONFIG = {
 
 const MonthlyOrders = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { month = new Date().getMonth(), year = new Date().getFullYear() } =
     location.state || {};
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
+  const [exporting, setExporting] = useState(false);
 
   const monthName = new Date(year, month).toLocaleString('default', { month: 'long' });
 
@@ -92,22 +96,89 @@ const MonthlyOrders = () => {
     };
   }, [orders]);
 
-  const exportPDF = () => {
-    const doc = new jsPDF();
-    doc.text(`Orders - ${monthName} ${year}`, 14, 15);
-
-    autoTable(doc, {
-      head: [['Order', 'Editor', 'Status', 'Date']],
-      body: orders.map(o => [
-        o.name,
-        o.assignedEditorNames?.join(', ') || 'N/A',
-        o.status,
-        new Date(o.createdAt?.seconds * 1000).toLocaleDateString()
-      ]),
-      startY: 25
+  const getBase64ImageFromURL = (url) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.setAttribute('crossOrigin', 'anonymous');
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const dataURL = canvas.toDataURL('image/jpeg');
+        resolve(dataURL);
+      };
+      img.onerror = error => {
+        resolve(null);
+      };
+      img.src = url;
     });
+  };
 
-    doc.save(`Orders_${monthName}_${year}.pdf`);
+  const exportPDF = async () => {
+    setExporting(true);
+    try {
+      const doc = new jsPDF();
+      doc.text(`Orders - ${monthName} ${year}`, 14, 15);
+
+      const tableColumn = ["ID", "Image", "Order Name", "Telecaller", "Editor", "Status", "Date"];
+      const tableRows = [];
+      const rowImages = {};
+
+      const promises = orders.map(async (order) => {
+        const imageUrl = order.sampleImageUrl || order.sampleImage || order.imageUrl || order.images?.[0];
+        let imgData = null;
+        if (imageUrl) {
+          imgData = await getBase64ImageFromURL(imageUrl);
+        }
+        return { ...order, imgData };
+      });
+
+      const processedOrders = await Promise.all(promises);
+
+      processedOrders.forEach((order, index) => {
+        if (order.imgData) rowImages[index] = order.imgData;
+        tableRows.push([
+          order.id.substring(0, 8),
+          '', // Placeholder for image
+          order.name,
+          order.telecaller || 'N/A',
+          order.assignedEditorNames?.join(', ') || 'N/A',
+          order.status,
+          new Date(order.createdAt?.seconds * 1000).toLocaleDateString()
+        ]);
+      });
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 25,
+        rowPageBreak: 'avoid',
+        bodyStyles: { valign: 'middle' },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 25, minCellHeight: 25 },
+        },
+        didDrawCell: (data) => {
+          if (data.column.index === 1 && data.cell.section === 'body') {
+            const img = rowImages[data.row.index];
+            if (img) {
+              const padding = 2;
+              const dim = data.cell.height - (padding * 2);
+              doc.addImage(img, 'JPEG', data.cell.x + padding, data.cell.y + padding, dim, dim);
+            }
+          }
+        }
+      });
+
+      doc.save(`Orders_${monthName}_${year}.pdf`);
+    } catch (error) {
+      console.error("Export failed", error);
+      alert("Failed to export PDF. Please try again.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const renderStatusIcon = (status) => {
@@ -174,27 +245,33 @@ const MonthlyOrders = () => {
               mb: 2
             }}
           >
-            <Box>
-              <Typography
-                variant="h4"
-                sx={{
-                  fontWeight: 700,
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent'
-                }}
-              >
-                {monthName} {year}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
-              </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton onClick={() => navigate(-1)} sx={{ color: '#667eea' }}>
+                <ArrowBackIcon />
+              </IconButton>
+              <Box>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent'
+                  }}
+                >
+                  {monthName} {year}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
+                </Typography>
+              </Box>
             </Box>
 
             <Button
               variant="contained"
-              startIcon={<DownloadIcon />}
+              startIcon={exporting ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />}
               onClick={exportPDF}
+              disabled={exporting}
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
@@ -204,7 +281,7 @@ const MonthlyOrders = () => {
                 }
               }}
             >
-              Export PDF
+              {exporting ? 'Exporting...' : 'Export PDF'}
             </Button>
           </Box>
 

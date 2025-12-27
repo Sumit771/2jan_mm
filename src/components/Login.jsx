@@ -1,6 +1,6 @@
 // src/components/Login.jsx
 import React, { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { TextField, Button, Typography, Box, Checkbox, FormControlLabel, Container } from '@mui/material';
@@ -49,6 +49,8 @@ const Login = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
+            const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+            await setPersistence(auth, persistenceType);
             await signInWithEmailAndPassword(auth, email, password);
             if (rememberMe) {
                 // Note: Storing passwords in local storage is not recommended for security reasons.

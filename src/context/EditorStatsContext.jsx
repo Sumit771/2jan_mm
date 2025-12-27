@@ -97,7 +97,7 @@ export const EditorStatsProvider = ({ children }) => {
                     acc[stat.email] = stat;
                     return acc;
                 }, {})));
-                console.log('EditorStatsContext - Calculated stats from orders:', stats);
+                // console.log('EditorStatsContext - Calculated stats from orders:', stats);
                 setLoading(false);
             });
 

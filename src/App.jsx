@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { HashRouter } from 'react-router-dom';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { EditorStatsProvider } from './context/EditorStatsContext';
@@ -10,6 +11,7 @@ import OrderDetails from './components/OrderDetails';
 import MonthlyOrders from './components/MonthlyOrders';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
 
 const theme = createTheme({
   palette: {
@@ -79,9 +81,10 @@ const theme = createTheme({
 function App() {
   return (
     <ThemeProvider theme={theme}>
+
       <CssBaseline />
       <AuthProvider>
-        <Router>
+        <HashRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -89,8 +92,9 @@ function App() {
             <Route path="/orders/monthly" element={<ProtectedRoute><MonthlyOrders /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to="/dashboard" />} />
           </Routes>
-        </Router>
+        </HashRouter>
         <ToastContainer />
+
       </AuthProvider>
     </ThemeProvider>
   );

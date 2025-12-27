@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import React, { useEffect, useState, useRef } from 'react';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -26,17 +26,27 @@ import {
     Tooltip,
     IconButton,
     useTheme,
-    useMediaQuery
+    useMediaQuery,
+    Tabs,
+    Tab,
+    TextField,
+    InputAdornment,
+    Alert,
+    Avatar
 } from '@mui/material';
-import { Lock as LockIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Lock as LockIcon, Close as CloseIcon, CheckCircle as CheckCircleIcon, Search as SearchIcon, WarningAmber as WarningIcon } from '@mui/icons-material';
 
-const EditorDashboard = () => {
+const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
     const { user } = useAuth();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('active');
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const [timeFilter, setTimeFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     // State for confirmation dialog
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -46,6 +56,9 @@ const EditorDashboard = () => {
     // State for Details Modal
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [messages, setMessages] = useState({}); // { orderId: 'message' }
+    const [sending, setSending] = useState({}); // { orderId: boolean }
+    const isInitialMount = useRef(true);
 
     useEffect(() => {
         if (!user?.email) return;
@@ -57,6 +70,19 @@ const EditorDashboard = () => {
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            if (!isInitialMount.current) {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const data = change.doc.data();
+                        if (data.assignmentType === 'broadcast') {
+                            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                            audio.play().catch(() => { });
+                            toast.info("New Broadcast Order Available!");
+                        }
+                    }
+                });
+            }
+
             const fetchedOrders = snapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
@@ -72,14 +98,100 @@ const EditorDashboard = () => {
 
             setOrders(fetchedOrders);
             setLoading(false);
+            isInitialMount.current = false;
         }, (error) => {
             console.error("Error fetching orders:", error);
             toast.error("Error loading orders. Please check permissions.");
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+        };
     }, [user]);
+
+    useEffect(() => {
+        if (highlightOrderId && orders.length > 0) {
+            const order = orders.find(o => o.id === highlightOrderId);
+            if (order) {
+                setSelectedOrder(order);
+                setDetailsOpen(true);
+                if (onClearHighlight) onClearHighlight();
+            }
+        }
+    }, [highlightOrderId, orders, onClearHighlight]);
+
+    const handleAcceptOrder = async (order) => {
+        if (!user) return;
+        try {
+            const orderRef = doc(db, 'orders', order.id);
+
+            // Fetch user profile to get the correct display name
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            const userData = userDoc.exists() ? userDoc.data() : null;
+            const editorName = userData?.displayName || user.displayName || user.email.split('@')[0];
+            const updateData = {
+                status: 'in-progress',
+                acceptedAt: serverTimestamp(),
+            };
+
+            if (order.assignmentType === 'broadcast') {
+                updateData.assignedEditorEmails = [user.email];
+                updateData.assignedEditorNames = [editorName];
+                updateData.assignmentType = 'direct';
+            }
+
+            await updateDoc(orderRef, updateData);
+            toast.success("Order accepted! You can now start working.");
+            setFilter('active');
+        } catch (error) {
+            console.error("Error accepting order:", error);
+            toast.error("Failed to accept order.");
+        }
+    };
+
+    const handleSendNotificationToTL = async (order, overdueText) => {
+        const message = messages[order.id];
+        if (!message) {
+            toast.warn("Please enter a message for the Team Leader.");
+            return;
+        }
+
+        setSending(prev => ({ ...prev, [order.id]: true }));
+
+        try {
+            const tlQuery = query(collection(db, 'users'), where('role', '==', 'team-leader'));
+            const tlSnapshot = await getDocs(tlQuery);
+            const teamLeaders = tlSnapshot.docs.map(doc => doc.data());
+
+            if (teamLeaders.length === 0) {
+                toast.error("No Team Leaders found to notify.");
+                return;
+            }
+
+            const notificationPromises = teamLeaders.map(leader => {
+                return addDoc(collection(db, 'notifications'), {
+                    recipientEmail: leader.email,
+                    senderName: user.displayName || user.email,
+                    message: `[${overdueText} Alert] ${message}`,
+                    orderName: order.name,
+                    orderId: order.id,
+                    type: 'danger',
+                    createdAt: serverTimestamp(),
+                    read: false,
+                });
+            });
+
+            await Promise.all(notificationPromises);
+            toast.success(`Alert sent to Team Leaders.`);
+            setMessages(prev => ({ ...prev, [order.id]: '' }));
+        } catch (error) {
+            console.error("Error sending notification:", error);
+            toast.error("Failed to send notification.");
+        } finally {
+            setSending(prev => ({ ...prev, [order.id]: false }));
+        }
+    };
 
     const handleStatusChange = async (orderId, newStatus) => {
         if (newStatus === 'completed') {
@@ -167,8 +279,42 @@ const EditorDashboard = () => {
     };
 
     const filteredOrders = orders.filter(order => {
-        if (filter === 'active') return order.status !== 'completed';
-        return order.status === 'completed';
+        const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : null;
+        if (!orderDate) return false;
+
+        // Overdue Tabs Logic
+        if (timeFilter === '3_days_old' || timeFilter === '30_days_old') {
+            if (order.status === 'completed') return false; // Only show pending/in-progress
+            const now = new Date();
+            const diffTime = Math.abs(now - orderDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (timeFilter === '3_days_old' && (diffDays < 3 || diffDays >= 30)) return false;
+            if (timeFilter === '30_days_old' && diffDays < 30) return false;
+        } else {
+            // Regular Status Filter
+            if (filter === 'pending' && order.status !== 'pending') return false;
+            if (filter === 'active' && order.status !== 'in-progress') return false;
+            if (filter === 'completed' && order.status !== 'completed') return false;
+        }
+
+        // 2. Search Filter
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const nameMatch = order.name?.toLowerCase().includes(query);
+            const telecallerMatch = order.telecaller?.toLowerCase().includes(query);
+            if (!nameMatch && !telecallerMatch) return false;
+        }
+
+        // 3. Date Filter
+        if (startDate || endDate) {
+            if (startDate && orderDate < new Date(startDate + "T00:00:00")) return false;
+            if (endDate && orderDate > new Date(endDate + "T23:59:59")) return false;
+        } else if (timeFilter !== 'all' && timeFilter !== '3_days_old' && timeFilter !== '30_days_old') {
+            // This part is for potential future filters like 'last 7 days' etc.
+        }
+
+        return true;
     });
 
     const getEditorStatus = (order) => {
@@ -181,6 +327,16 @@ const EditorDashboard = () => {
         return order.status;
     };
 
+    const isBroadcast = (order) => order.assignmentType === 'broadcast';
+
+    const getPriorityColor = (priority) => {
+        switch (priority) {
+            case 'urgent': return 'error';
+            case 'high': return 'warning';
+            default: return 'default';
+        }
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
@@ -191,11 +347,14 @@ const EditorDashboard = () => {
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Typography variant="h4" fontWeight={700} mb={4}>
-                My Tasks
-            </Typography>
+            <Box display="flex" alignItems="center" gap={2} mb={4}>
+                <Typography variant="h4" fontWeight={700}>
+                    My Tasks
+                </Typography>
 
-            <Box mb={4}>
+            </Box>
+
+            <Box mb={4} sx={{ display: 'flex', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
                 <ToggleButtonGroup
                     color="primary"
                     value={filter}
@@ -205,169 +364,323 @@ const EditorDashboard = () => {
                     }}
                     aria-label="Order Status Filter"
                 >
+                    <ToggleButton value="pending">Pending</ToggleButton>
                     <ToggleButton value="active">Active</ToggleButton>
                     <ToggleButton value="completed">Completed</ToggleButton>
                 </ToggleButtonGroup>
             </Box>
 
+            <Box sx={{ mb: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, flexWrap: 'wrap' }}>
+                <TextField
+                    label="Search by Client or Telecaller"
+                    variant="outlined"
+                    size="small"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon color="action" />
+                            </InputAdornment>
+                        ),
+                    }}
+                    sx={{ flexGrow: 1, width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper', borderRadius: 1 }}
+                />
+                <TextField
+                    label="Start Date"
+                    type="date"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={startDate}
+                    onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setTimeFilter('custom');
+                    }}
+                    sx={{ width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper', borderRadius: 1 }}
+                />
+                <TextField
+                    label="End Date"
+                    type="date"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={endDate}
+                    onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setTimeFilter('custom');
+                    }}
+                    sx={{ width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper', borderRadius: 1 }}
+                />
+            </Box>
+
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+                <Tabs
+                    value={timeFilter}
+                    onChange={(e, v) => {
+                        setTimeFilter(v);
+                        setStartDate('');
+                        setEndDate('');
+                    }}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                >
+                    <Tab label="All Orders" value="all" />
+                    <Tab label="3+ Days Old" value="3_days_old" />
+                    <Tab label="30+ Days Old" value="30_days_old" />
+                </Tabs>
+            </Box>
+
             {filteredOrders.length === 0 ? (
                 <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 4 }}>
-                    <Typography variant="h6" color="text.secondary">
-                        {orders.length === 0 ? "No orders assigned to you yet." : `No ${filter} orders found.`}
-                    </Typography>
+                    <Alert severity="info" sx={{ justifyContent: 'center' }}>
+                        {orders.length === 0 ? "No orders assigned to you yet." : `No orders match the current filters.`}
+                    </Alert>
                 </Paper>
             ) : (
-                <Grid container spacing={3}>
-                    {filteredOrders.map((order) => (
-                        <Grid item xs={12} md={6} lg={4} key={order.id}>
-                            <Paper
-                                sx={{
-                                    p: 3,
-                                    borderRadius: 4,
-                                    boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
-                                    height: 560, // Fixed height for consistency across all devices
-                                    width: '100%',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'space-between', // Distribute space
-                                    transition: 'transform 0.2s',
-                                    bgcolor: getEditorStatus(order) === 'completed' ? '#e8f5e9' : 'background.paper',
-                                    border: getEditorStatus(order) === 'completed' ? '2px solid #4caf50' : 'none',
-                                    '&:hover': {
-                                        transform: 'translateY(-4px)',
-                                    },
-                                }}
-                            >
-                                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                                    <Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <FormControl size="small" sx={{ minWidth: 140 }}>
-                                                <InputLabel id={`status-label-${order.id}`}>Status</InputLabel>
-                                                <Select
-                                                    labelId={`status-label-${order.id}`}
-                                                    value={getEditorStatus(order)}
-                                                    label="Status"
-                                                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                                                    sx={{ bgcolor: 'background.paper' }}
-                                                    disabled={getEditorStatus(order) === 'completed'}
+                <Grid container spacing={2}>
+                    {filteredOrders.map((order) => {
+                        const now = new Date();
+                        const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : null;
+                        let diffDays = 0;
+                        if (orderDate) {
+                            const diffTime = Math.abs(now - orderDate);
+                            diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        }
+
+                        const isOverdue30 = diffDays >= 30 && order.status !== 'completed';
+                        const isOverdue3 = diffDays >= 3 && diffDays < 30 && order.status !== 'completed';
+                        const isOverdue = isOverdue3 || isOverdue30;
+                        const overdueText = isOverdue30 ? '30+ Days' : '3+ Days';
+
+                        return (
+                            <Grid item xs={6} sm={6} md={4} lg={3} key={order.id}>
+                                <Paper
+                                    sx={{
+                                        p: { xs: 1.5, sm: 2 },
+                                        borderRadius: 3,
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+                                        height: '100%',
+                                        minHeight: 360,
+                                        width: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between', // Distribute space
+                                        transition: 'transform 0.2s',
+                                        bgcolor: getEditorStatus(order) === 'completed' ? '#e8f5e9' : (isOverdue ? (isOverdue30 ? '#ffebee' : '#fff8e1') : 'background.paper'),
+                                        border: getEditorStatus(order) === 'completed' ? '2px solid #4caf50' : (isOverdue ? `2px solid ${isOverdue30 ? '#d32f2f' : '#ed6c02'}` : 'none'),
+                                        '&:hover': {
+                                            transform: 'translateY(-4px)',
+                                        },
+                                    }}
+                                >
+                                    {isOverdue && (
+                                        <Box sx={{ mb: 2, p: 1, borderRadius: 1, bgcolor: isOverdue30 ? 'error.lighter' : 'warning.lighter' }}>
+                                            <Box display="flex" alignItems="center" mb={1}>
+                                                <WarningIcon color={isOverdue30 ? 'error' : 'warning'} sx={{ mr: 1 }} />
+                                                <Typography variant="subtitle2" color={isOverdue30 ? 'error.main' : 'warning.main'} sx={{ textTransform: 'capitalize' }}>
+                                                    This order is {order.status} for over {overdueText}!
+                                                </Typography>
+                                            </Box>
+                                            <Box display="flex" gap={1}>
+                                                <TextField
+                                                    label="Message to Team Leader"
+                                                    variant="outlined"
+                                                    size="small"
+                                                    fullWidth
+                                                    value={messages[order.id] || ''}
+                                                    onChange={(e) => setMessages(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                                />
+                                                <Button
+                                                    variant="contained"
+                                                    color={isOverdue30 ? 'error' : 'warning'}
+                                                    onClick={() => handleSendNotificationToTL(order, overdueText)}
+                                                    disabled={sending[order.id]}
+                                                    size="small"
+                                                    sx={{ whiteSpace: 'nowrap' }}
                                                 >
-                                                    <MenuItem value="pending" disabled>Pending</MenuItem>
-                                                    <MenuItem value="in-progress">In-Progress</MenuItem>
-                                                    <MenuItem value="completed">Completed</MenuItem>
-                                                </Select>
-                                            </FormControl>
-                                            {getEditorStatus(order) === 'completed' && (
-                                                <Tooltip title="Status is locked">
-                                                    <LockIcon color="action" fontSize="small" />
-                                                </Tooltip>
+                                                    {sending[order.id] ? <CircularProgress size={20} /> : 'Send Alert'}
+                                                </Button>
+                                            </Box>
+                                        </Box>
+                                    )}
+
+                                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                                        {isBroadcast(order) ? (
+                                            <Chip
+                                                label="New Order Available"
+                                                color="primary"
+                                                size="small"
+                                                sx={{ fontWeight: 'bold' }}
+                                            />
+                                        ) : (
+                                            <Box>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Tooltip title={order.status === 'pending' && !order.isSelfOrder ? "Please accept the order first" : ""} arrow>
+                                                        <Box>
+                                                            <FormControl size="small" sx={{ minWidth: 140 }}>
+                                                                <InputLabel id={`status-label-${order.id}`}>Status</InputLabel>
+                                                                <Select
+                                                                    labelId={`status-label-${order.id}`}
+                                                                    value={getEditorStatus(order)}
+                                                                    label="Status"
+                                                                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                                                                    sx={{ bgcolor: 'background.paper' }}
+                                                                    disabled={getEditorStatus(order) === 'completed' || (order.status === 'pending' && !order.isSelfOrder)}
+                                                                >
+                                                                    <MenuItem value="pending" disabled>Pending</MenuItem>
+                                                                    <MenuItem value="in-progress">In-Progress</MenuItem>
+                                                                    <MenuItem value="completed">Completed</MenuItem>
+                                                                </Select>
+                                                            </FormControl>
+                                                        </Box>
+                                                    </Tooltip>
+                                                    {getEditorStatus(order) === 'completed' && (
+                                                        <Tooltip title="Status is locked">
+                                                            <LockIcon color="action" fontSize="small" />
+                                                        </Tooltip>
+                                                    )}
+                                                </Box>
+                                                {getEditorStatus(order) === 'completed' && order.status !== 'completed' && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                                                        Waiting for others
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        )}
+                                        <Box display="flex" gap={0.5}>
+                                            {order.priority && order.priority !== 'normal' && (
+                                                <Chip
+                                                    label={order.priority.toUpperCase()}
+                                                    size="small"
+                                                    color={getPriorityColor(order.priority)}
+                                                    sx={{ fontSize: '0.7rem', height: 24, fontWeight: 'bold' }}
+                                                />
+                                            )}
+                                            {order.assignedEditorEmails?.length > 1 && !isBroadcast(order) && (
+                                                <Chip
+                                                    label="SHARED"
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{
+                                                        fontSize: '0.7rem',
+                                                        height: 24,
+                                                        color: '#9C27B0',
+                                                        borderColor: '#9C27B0'
+                                                    }}
+                                                />
                                             )}
                                         </Box>
-                                        {getEditorStatus(order) === 'completed' && order.status !== 'completed' && (
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
-                                                Waiting for others
-                                            </Typography>
-                                        )}
                                     </Box>
-                                    {order.assignedEditorEmails?.length > 1 && (
-                                        <Chip
-                                            label="SHARED"
-                                            size="small"
-                                            variant="outlined"
+
+                                    {/* Image Container with Fixed Height */}
+                                    <Box
+                                        sx={{
+                                            width: { xs: '100%', sm: 180 },
+                                            height: { xs: 100, sm: 120 },
+                                            mb: 1,
+                                            borderRadius: 2,
+                                            overflow: 'hidden',
+                                            bgcolor: '#f5f5f5',
+                                            flexShrink: 0,
+                                            '&:hover img': {
+                                                objectFit: 'contain', // Show full image on hover
+                                                transform: 'scale(1.05)'
+                                            }
+                                        }}
+                                    >
+                                        <Box
+                                            component="img"
+                                            src={order.sampleImageUrl || 'https://via.placeholder.com/400x200?text=No+Image'}
+                                            alt="Order Sample"
                                             sx={{
-                                                fontSize: '0.7rem',
-                                                height: 24,
-                                                color: '#9C27B0',
-                                                borderColor: '#9C27B0'
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'cover', // Fix overflow/cropping
+                                                transition: 'all 0.3s ease'
                                             }}
                                         />
-                                    )}
-                                </Box>
-
-                                {/* Image Container with Fixed Height */}
-                                <Box
-                                    sx={{
-                                        width: '100%',
-                                        height: 200, // Fixed image height
-                                        mb: 1.5,
-                                        borderRadius: 2,
-                                        overflow: 'hidden',
-                                        bgcolor: '#f5f5f5',
-                                        flexShrink: 0
-                                    }}
-                                >
-                                    <Box
-                                        component="img"
-                                        src={order.sampleImageUrl || 'https://via.placeholder.com/400x200?text=No+Image'}
-                                        alt="Order Sample"
-                                        sx={{
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'cover',
-                                        }}
-                                    />
-                                </Box>
-
-                                {/* Content Area */}
-                                <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-                                    <Typography variant="h6" fontWeight={700} gutterBottom sx={{
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 1,
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis'
-                                    }}>
-                                        {order.name}
-                                    </Typography>
-
-                                    <Typography variant="body2" color="text.secondary" mb={0.5} sx={{
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis'
-                                    }}>
-                                        <strong>Telecaller:</strong> {order.telecaller}
-                                    </Typography>
-
-                                    <Typography variant="body2" color="text.secondary" mb={2}>
-                                        Date: {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
-                                    </Typography>
-
-                                    {/* Remark Section - Fixed height container with truncation */}
-                                    <Box sx={{ mb: 2, overflow: 'hidden' }}>
-                                        {order.remark && (
-                                            <Typography variant="body2" sx={{
-                                                fontStyle: 'italic',
-                                                color: 'text.secondary',
-                                                display: '-webkit-box',
-                                                WebkitLineClamp: 2,
-                                                WebkitBoxOrient: 'vertical',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                bgcolor: '#fff8e1',
-                                                p: 1,
-                                                borderRadius: 1,
-                                            }}>
-                                                Remark: {order.remark}
-                                            </Typography>
-                                        )}
                                     </Box>
-                                </Box>
 
-                                <Button
-                                    variant="contained"
-                                    fullWidth
-                                    onClick={() => handleOpenDetails(order)}
-                                    sx={{
-                                        mt: 'auto', // Ensures button stays at bottom
-                                        background: 'linear-gradient(135deg,#667eea,#764ba2)',
-                                        textTransform: 'none',
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    View Details
-                                </Button>
-                            </Paper>
-                        </Grid>
-                    ))}
+                                    {/* Content Area */}
+                                    <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                                        <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{
+                                            fontSize: { xs: '0.9rem', sm: '1rem' },
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 1,
+                                            WebkitBoxOrient: 'vertical',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                        }}>
+                                            {order.name}
+                                        </Typography>
+
+                                        <Typography variant="caption" color="text.secondary" mb={0.5} display="block" sx={{
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                        }}>
+                                            <strong>Telecaller:</strong> {order.telecaller}
+                                        </Typography>
+
+                                        <Typography variant="caption" color="text.secondary" mb={1} display="block">
+                                            Date: {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                                        </Typography>
+
+                                        {/* Remark Section */}
+                                        <Box sx={{ mb: 1.5, overflow: 'hidden' }}>
+                                            {order.remark && (
+                                                <Typography variant="caption" sx={{
+                                                    fontStyle: 'italic',
+                                                    color: 'text.secondary',
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    bgcolor: '#fff8e1',
+                                                    p: 0.5,
+                                                    borderRadius: 1,
+                                                }}>
+                                                    Remark: {order.remark}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </Box>
+
+                                    {order.status === 'pending' && !order.isSelfOrder ? (
+                                        <Button
+                                            variant="contained"
+                                            fullWidth
+                                            color="success"
+                                            startIcon={<CheckCircleIcon />}
+                                            onClick={() => handleAcceptOrder(order)}
+                                            sx={{
+                                                mt: 'auto',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                boxShadow: '0 4px 14px 0 rgba(76, 175, 80, 0.39)'
+                                            }}
+                                        >
+                                            Accept Order
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            variant="contained"
+                                            fullWidth
+                                            onClick={() => handleOpenDetails(order)}
+                                            sx={{
+                                                mt: 'auto', // Ensures button stays at bottom
+                                                background: 'linear-gradient(135deg,#667eea,#764ba2)',
+                                                fontSize: '0.75rem',
+                                                textTransform: 'none',
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            View Details
+                                        </Button>
+                                    )}
+                                </Paper>
+                            </Grid>)
+                    })}
                 </Grid>
             )}
 
@@ -383,7 +696,7 @@ const EditorDashboard = () => {
                             : "Please confirm again. Are you absolutely sure the order is complete and ready for delivery?"}
                     </DialogContentText>
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{ pb: { xs: 2, sm: 1 } }}>
                     <Button onClick={handleClose} color="inherit">Cancel</Button>
                     <Button onClick={handleConfirm} color={confirmStep === 1 ? "primary" : "success"} variant="contained">
                         {confirmStep === 1 ? "Proceed" : "Yes, Complete Order"}
@@ -435,6 +748,14 @@ const EditorDashboard = () => {
                                         size="small"
                                         sx={{ fontWeight: 'bold', mr: 1 }}
                                     />
+                                    {selectedOrder.priority && selectedOrder.priority !== 'normal' && (
+                                        <Chip
+                                            label={selectedOrder.priority.toUpperCase()}
+                                            color={getPriorityColor(selectedOrder.priority)}
+                                            size="small"
+                                            sx={{ fontWeight: 'bold', mr: 1 }}
+                                        />
+                                    )}
                                     {selectedOrder.assignedEditorEmails?.length > 1 && (
                                         <Chip label="SHARED" size="small" variant="outlined" sx={{ color: '#9C27B0', borderColor: '#9C27B0' }} />
                                     )}
@@ -492,7 +813,7 @@ const EditorDashboard = () => {
                         </Grid>
                     )}
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{ pb: { xs: 2, sm: 1 } }}>
                     <Button onClick={handleCloseDetails} color="primary">
                         Close
                     </Button>

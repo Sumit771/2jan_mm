@@ -322,7 +322,7 @@ const EditorInsights = () => {
 
                             {/* Summary Cards */}
                             <Grid container spacing={2} sx={{ mb: 3 }}>
-                                <Grid item xs={6} sm={3}>
+                                <Grid item xs={12} sm={3}>
                                     <Card>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <AssignmentIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
@@ -333,7 +333,7 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
+                                <Grid item xs={12} sm={3}>
                                     <Card>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <CheckCircleIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
@@ -344,7 +344,7 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
+                                <Grid item xs={12} sm={3}>
                                     <Card>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <ScheduleIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
@@ -355,7 +355,7 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
+                                <Grid item xs={12} sm={3}>
                                     <Card>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <WorkIcon color={getWorkloadColor(localMetrics.workload)} sx={{ fontSize: 40, mb: 1, color: '#F44336' }} />
@@ -366,7 +366,7 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
+                                <Grid item xs={12} sm={3}>
                                     <Card>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <GroupIcon sx={{ fontSize: 40, mb: 1, color: '#9C27B0' }} />
@@ -377,7 +377,7 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
+                                <Grid item xs={12} sm={3}>
                                     <Card>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <GroupIcon sx={{ fontSize: 40, mb: 1, color: '#7B1FA2' }} />
@@ -471,8 +471,8 @@ const EditorInsights = () => {
                                                     <TableRow>
                                                         <TableCell>Telecaller</TableCell>
                                                         <TableCell>Status</TableCell>
-                                                        <TableCell>Created</TableCell>
-                                                        <TableCell>Completed</TableCell>
+                                                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Created</TableCell>
+                                                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Completed</TableCell>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
@@ -486,8 +486,8 @@ const EditorInsights = () => {
                                                                     size="small"
                                                                 />
                                                             </TableCell>
-                                                            <TableCell>{order.createdAt?.toDate().toLocaleDateString()}</TableCell>
-                                                            <TableCell>{order.completedAt?.toDate().toLocaleDateString() || 'N/A'}</TableCell>
+                                                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{order.createdAt?.toDate().toLocaleDateString()}</TableCell>
+                                                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{order.completedAt?.toDate().toLocaleDateString() || 'N/A'}</TableCell>
                                                         </TableRow>
                                                     ))}
                                                 </TableBody>

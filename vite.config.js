@@ -4,11 +4,17 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  server: {
-    allowedHosts: [
-      'rindless-farah-undeceased.ngrok-free.dev'
-    ]
-  }
+  base: './', 
+  build: {
+  outDir: 'dist',
+  emptyOutDir: true
+},
+
+  // server: {
+  //   allowedHosts: [
+  //     'rindless-farah-undeceased.ngrok-free.dev'
+  //   ]
+  // }
 
   //base: '/mm/',
 })

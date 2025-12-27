@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { addDoc, collection, serverTimestamp, query, onSnapshot, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -18,19 +18,12 @@ import {
     Paper,
     Grid,
     Link,
+    useTheme,
+    useMediaQuery
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { toast } from 'react-toastify';
-
-/* -------------------- EDITORS -------------------- */
-
-const editors = [
-    { email: 'tarun@mm.com', name: 'Tarun' },
-    { email: 'gurwinder@mm.com', name: 'Gurwinder' },
-    { email: 'roop@mm.com', name: 'Roop' },
-    { email: 'harinder@mm.com', name: 'Harinder' },
-];
 
 /* -------------------- STYLES -------------------- */
 
@@ -59,11 +52,16 @@ const VisuallyHiddenInput = styled('input')({
 
 const OrderForm = ({ onOrderCreated }) => {
     const { role } = useAuth();
+    const [editors, setEditors] = useState([]);
+    const [bbCode, setBbCode] = useState('');
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const [form, setForm] = useState({
         name: '',
         telecaller: '',
         remark: '',
+        priority: 'normal',
         imageType: 'upload',
         sampleImageUrl: '',
         assignedEditorEmails: [],
@@ -73,8 +71,32 @@ const OrderForm = ({ onOrderCreated }) => {
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
 
+    useEffect(() => {
+        const q = query(collection(db, 'users'), where('role', '==', 'editor'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedEditors = snapshot.docs.map(doc => ({
+                email: doc.data().email,
+                name: doc.data().displayName || doc.data().email
+            }));
+            setEditors(fetchedEditors);
+        }, (error) => {
+            console.error("Error fetching editors:", error);
+            toast.error("Failed to fetch editors list.");
+        });
+        return () => unsubscribe();
+    }, []);
+
     const handleChange = (e) =>
         setForm({ ...form, [e.target.name]: e.target.value });
+
+    const handleBbCodeChange = (e) => {
+        const val = e.target.value;
+        setBbCode(val);
+        const match = val.match(/\[img\](.*?)\[\/img\]/);
+        if (match && match[1]) {
+            setForm((prev) => ({ ...prev, sampleImageUrl: match[1] }));
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -104,11 +126,14 @@ const OrderForm = ({ onOrderCreated }) => {
                 name: form.name,
                 telecaller: form.telecaller,
                 remark: form.remark,
+                priority: form.priority,
                 imageType: form.imageType,
                 sampleImageUrl: imageUrl,
 
                 assignedEditorEmails: form.assignedEditorEmails,
                 assignedEditorNames: form.assignedEditorNames,
+                assignmentType: form.assignedEditorEmails.length > 1 ? 'broadcast' : 'direct',
+                acceptedAt: null,
 
                 status: 'pending',
                 createdAt: serverTimestamp(),
@@ -126,8 +151,8 @@ const OrderForm = ({ onOrderCreated }) => {
     };
 
     return (
-        <Box sx={{ width: '76vw' }}>
-            <Paper sx={{ p: 4, borderRadius: 4 }}>
+        <Box sx={{ width: { xs: '100%', md: '76vw' }, mx: 'auto' }}>
+            <Paper sx={{ p: { xs: 2, md: 4 }, borderRadius: 4 }}>
                 <Typography variant="h4" fontWeight={700} mb={4}>
                     Create New Order
                 </Typography>
@@ -165,6 +190,20 @@ const OrderForm = ({ onOrderCreated }) => {
                                 multiline
                                 rows={3}
                             />
+
+                            <FormControl fullWidth sx={{ mt: 3 }}>
+                                <InputLabel>Priority</InputLabel>
+                                <Select
+                                    name="priority"
+                                    value={form.priority}
+                                    label="Priority"
+                                    onChange={handleChange}
+                                >
+                                    <MenuItem value="normal">Normal</MenuItem>
+                                    <MenuItem value="high">High</MenuItem>
+                                    <MenuItem value="urgent">Urgent</MenuItem>
+                                </Select>
+                            </FormControl>
                         </Grid>
 
                         {/* RIGHT */}
@@ -174,7 +213,7 @@ const OrderForm = ({ onOrderCreated }) => {
                             </Typography>
 
                             <RadioGroup
-                                row
+                                row={!isMobile}
                                 name="imageType"
                                 value={form.imageType}
                                 onChange={handleChange}
@@ -209,14 +248,24 @@ const OrderForm = ({ onOrderCreated }) => {
                                     />
                                 </Button>
                             ) : (
-                                <GradientTextField
-                                    fullWidth
-                                    label="Image URL"
-                                    name="sampleImageUrl"
-                                    value={form.sampleImageUrl}
-                                    onChange={handleChange}
-                                    sx={{ mt: 2 }}
-                                />
+                                <>
+                                    <GradientTextField
+                                        fullWidth
+                                        label="Paste BBCode"
+                                        value={bbCode}
+                                        onChange={handleBbCodeChange}
+                                        sx={{ mt: 2 }}
+                                        helperText="Paste full BBCode to auto-extract URL"
+                                    />
+                                    <GradientTextField
+                                        fullWidth
+                                        label="Image URL"
+                                        name="sampleImageUrl"
+                                        value={form.sampleImageUrl}
+                                        onChange={handleChange}
+                                        sx={{ mt: 2 }}
+                                    />
+                                </>
                             )}
 
                             {/* ASSIGN EDITOR */}
@@ -225,7 +274,7 @@ const OrderForm = ({ onOrderCreated }) => {
                                 <Select
                                     label="Assign Editor"
                                     value={
-                                        form.assignedEditorEmails.length === editors.length
+                                        editors.length > 0 && form.assignedEditorEmails.length === editors.length
                                             ? 'all'
                                             : form.assignedEditorEmails[0] || ''
                                     }
@@ -246,6 +295,7 @@ const OrderForm = ({ onOrderCreated }) => {
                                         }
                                     }}
                                 >
+                                    <MenuItem value="" disabled>Select Editor</MenuItem>
                                     <MenuItem value="all">All Editors</MenuItem>
                                     {editors.map((e) => (
                                         <MenuItem key={e.email} value={e.email}>
@@ -258,7 +308,7 @@ const OrderForm = ({ onOrderCreated }) => {
                     </Grid>
 
                     {/* ACTIONS */}
-                    <Box display="flex" justifyContent="flex-end" gap={2} mt={5}>
+                    <Box display="flex" justifyContent="flex-end" gap={2} mt={5} sx={{ flexDirection: { xs: 'column', sm: 'row' } }}>
                         <Button variant="outlined" onClick={onOrderCreated}>
                             Cancel
                         </Button>

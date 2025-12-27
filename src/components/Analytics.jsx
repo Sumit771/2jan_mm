@@ -1,10 +1,12 @@
 // src/components/Analytics.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useEditorStats } from '../context/EditorStatsContext';
-import { Card, CardContent, Typography, Grid, Box, Select, MenuItem, FormControl, InputLabel, Button, Chip, LinearProgress } from '@mui/material';
+import { Card, CardContent, Typography, Grid, Box, Select, MenuItem, FormControl, InputLabel, Button, Chip, LinearProgress, Avatar } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import {
     ShoppingCart as TotalIcon,
     CalendarToday as MonthlyIcon,
@@ -13,13 +15,27 @@ import {
     People as PeopleIcon,
     TrendingUp as TrendingUpIcon,
     Group as GroupIcon,
+    EmojiEvents as TrophyIcon,
 } from '@mui/icons-material';
 
 const Analytics = ({ onNavigateToPerformance }) => {
     const { orders, loading: ordersLoading } = useOrders();
     const { editorStats, loading: statsLoading } = useEditorStats();
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+    const [editors, setEditors] = useState([]);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const q = query(collection(db, 'users'), where('role', '==', 'editor'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const editorsList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setEditors(editorsList);
+        });
+        return () => unsubscribe();
+    }, []);
 
     if (ordersLoading || statsLoading) return <div>Loading...</div>;
 
@@ -33,12 +49,24 @@ const Analytics = ({ onNavigateToPerformance }) => {
     });
     const ordersThisMonth = monthlyOrders.length;
 
-    // Calculate all stats from live `orders` data for consistency
-    const performanceData = editorStats.map(editor => {
+    const isNewEditor = (createdAt) => {
+        if (createdAt === null) return true;
+        if (!createdAt || !createdAt.seconds) return false;
+        const joinedDate = new Date(createdAt.seconds * 1000);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        return joinedDate > thirtyDaysAgo;
+    };
+
+    // Calculate all stats from live `orders` and `editors` data for consistency
+    const performanceData = editors.map(editor => {
         const editorOrders = orders.filter(o => o.assignedEditorEmails?.includes(editor.email));
         return {
             email: editor.email,
-            name: editor.name || editor.email.split('@')[0],
+            name: editor.displayName || editor.email.split('@')[0],
+            photoURL: editor.photoURL,
+            createdAt: editor.createdAt,
+            status: editor.status,
             assigned: editorOrders.length,
             completed: editorOrders.filter(o => o.status === 'completed').length,
             pending: editorOrders.filter(o => o.status === 'pending' || o.status === 'in-progress').length,
@@ -77,6 +105,43 @@ const Analytics = ({ onNavigateToPerformance }) => {
     const totalSharedOrders = orders.filter(o => o.assignedEditorEmails?.length > 1).length;
     const sharedWorkload = orders.filter(o => o.assignedEditorEmails?.length > 1 && (o.status === 'pending' || o.status === 'in-progress')).length;
     const inProgressCount = orders.filter(o => o.status === 'in-progress').length;
+
+    // Calculate Top Performer (Team-wide)
+    const topPerformer = (() => {
+        const thisMonthCompleted = orders.filter(o => {
+            const created = o.createdAt?.toDate();
+            return o.status === 'completed' &&
+                created &&
+                created.getMonth() === currentMonth &&
+                created.getFullYear() === currentYear;
+        });
+
+        const counts = {};
+        thisMonthCompleted.forEach(o => {
+            o.assignedEditorEmails?.forEach(email => {
+                counts[email] = (counts[email] || 0) + 1;
+            });
+        });
+
+        let topEmail = '';
+        let maxOrders = -1;
+
+        Object.entries(counts).forEach(([email, count]) => {
+            if (count > maxOrders) {
+                maxOrders = count;
+                topEmail = email;
+            }
+        });
+
+        if (!topEmail) return null;
+
+        const editor = editors.find(e => e.email === topEmail);
+        return {
+            name: editor?.displayName || topEmail.split('@')[0],
+            count: maxOrders,
+            photoURL: editor?.photoURL
+        };
+    })();
 
     return (
         <Box>
@@ -154,24 +219,22 @@ const Analytics = ({ onNavigateToPerformance }) => {
                         </CardContent>
                     </Card>
                 </Grid>
+
+
                 <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#E0F7FA', borderLeft: '4px solid #00BCD4' }}>
+                    <Card sx={{ backgroundColor: '#FFFDE7', borderLeft: '4px solid #FFD700' }}>
                         <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <GroupIcon sx={{ fontSize: 40, color: '#00BCD4', mr: 2 }} />
+                            <TrophyIcon sx={{ fontSize: 40, color: '#FFD700', mr: 2 }} />
                             <Box>
-                                <Typography color="textSecondary" gutterBottom>Total Shared</Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{totalSharedOrders}</Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#E1F5FE', borderLeft: '4px solid #0288D1' }}>
-                        <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <GroupIcon sx={{ fontSize: 40, color: '#0288D1', mr: 2 }} />
-                            <Box>
-                                <Typography color="textSecondary" gutterBottom>Shared Workload</Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{sharedWorkload}</Typography>
+                                <Typography color="textSecondary" gutterBottom>Top Performer</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                                    {topPerformer ? topPerformer.name : 'N/A'}
+                                </Typography>
+                                {topPerformer && (
+                                    <Typography variant="caption" color="textSecondary">
+                                        {topPerformer.count} orders this month
+                                    </Typography>
+                                )}
                             </Box>
                         </CardContent>
                     </Card>
@@ -186,45 +249,7 @@ const Analytics = ({ onNavigateToPerformance }) => {
 
             {/* {endd-----------} */}
             {/* Editor Performance Summary Cards */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#F1F8E9', borderLeft: '4px solid #8BC34A' }}>
-                        <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <PeopleIcon sx={{ fontSize: 40, color: '#8BC34A', mr: 2 }} />
-                            <Box>
-                                <Typography color="textSecondary" gutterBottom>Active Editors</Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{editorStats.length}</Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#FFF8E1', borderLeft: '4px solid #FFC107' }}>
-                        <CardContent sx={{ p: 3 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                <TrendingUpIcon sx={{ fontSize: 40, color: '#FFC107', mr: 2 }} />
-                                <Box>
-                                    <Typography color="textSecondary" gutterBottom>Completion Rate</Typography>
-                                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{completionRate}%</Typography>
-                                </Box>
-                            </Box>
-                            {/* <LinearProgress variant="determinate" value={completionRate} sx={{ height: 8, borderRadius: 4 }} color="warning" /> */}
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#FFEBEE', borderLeft: '4px solid #F44336' }}>
-                        <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <PendingIcon sx={{ fontSize: 40, color: '#F44336', mr: 2 }} />
-                            <Box>
-                                <Typography color="textSecondary" gutterBottom>Current Workload</Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{totalWorkload}</Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                </Grid>
 
-            </Grid>
 
             {/* Analytics Section */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -276,10 +301,16 @@ const Analytics = ({ onNavigateToPerformance }) => {
                             <Grid item xs={12} sm={6} md={3} key={editor.email}>
                                 <Card variant="outlined" sx={{ p: 2 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                        <PeopleIcon sx={{ mr: 1, color: 'primary.main' }} />
+                                        {editor.photoURL ? (
+                                            <Avatar src={editor.photoURL} sx={{ width: 32, height: 32, mr: 1 }} />
+                                        ) : (
+                                            <PeopleIcon sx={{ mr: 1, color: 'primary.main' }} />
+                                        )}
                                         <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
                                             {editor.name}
                                         </Typography>
+                                        {isNewEditor(editor.createdAt) && <Chip label="NEW" color="primary" size="small" sx={{ ml: 1, height: 20, fontSize: '0.6rem' }} />}
+                                        {editor.status === 'Terminated' && <Chip label="Terminated" color="error" size="small" sx={{ ml: 1, height: 20, fontSize: '0.6rem' }} />}
                                     </Box>
 
                                     <Box sx={{ mb: 2 }}>

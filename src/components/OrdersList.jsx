@@ -1,7 +1,7 @@
 // src/components/OrdersList.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, collection, query, onSnapshot, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useOrders } from '../hooks/useOrders';
@@ -16,11 +16,7 @@ import {
     Chip,
     Typography,
     Box,
-    Card,
-    CardContent,
     Grid,
-    useMediaQuery,
-    useTheme,
     Avatar,
     TextField,
     InputAdornment,
@@ -43,6 +39,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import CloseIcon from '@mui/icons-material/Close';
 import { toast } from 'react-toastify';
 
 const statusColors = {
@@ -51,20 +48,12 @@ const statusColors = {
     completed: 'success',
 };
 
-const editors = [
-    { email: 'tarun@mm.com', name: 'Tarun' },
-    { email: 'gurwinder@mm.com', name: 'Gurwinder' },
-    { email: 'roop@mm.com', name: 'Roop' },
-    { email: 'harinder@mm.com', name: 'Harinder' },
-];
-
-const OrdersList = () => {
+const OrdersList = ({ highlightOrderId, onClearHighlight }) => {
     const { orders, loading } = useOrders();
     const navigate = useNavigate();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [searchTerm, setSearchTerm] = useState('');
     const [page, setPage] = useState(1);
+    const [editors, setEditors] = useState([]);
     const ordersPerPage = 10;
 
     // Edit State
@@ -94,6 +83,36 @@ const OrdersList = () => {
     const [anchorEl, setAnchorEl] = useState(null);
     const [popoverOrder, setPopoverOrder] = useState(null);
 
+    // Details Modal State
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState(null);
+
+    useEffect(() => {
+        const q = query(collection(db, 'users'), where('role', '==', 'editor'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedEditors = snapshot.docs.map(doc => ({
+                email: doc.data().email,
+                name: doc.data().displayName || doc.data().email
+            }));
+            setEditors(fetchedEditors);
+        }, (error) => {
+            console.error("Error fetching editors:", error);
+            toast.error("Failed to fetch editors list.");
+        });
+        return () => unsubscribe();
+    }, []);
+
+    useEffect(() => {
+        if (highlightOrderId && orders.length > 0) {
+            const order = orders.find(o => o.id === highlightOrderId);
+            if (order) {
+                setSelectedOrder(order);
+                setDetailsOpen(true);
+                if (onClearHighlight) onClearHighlight();
+            }
+        }
+    }, [highlightOrderId, orders, onClearHighlight]);
+
     const handlePopoverOpen = (event, order) => {
         setAnchorEl(event.currentTarget);
         setPopoverOrder(order);
@@ -102,6 +121,18 @@ const OrdersList = () => {
     const handlePopoverClose = () => {
         setAnchorEl(null);
         setPopoverOrder(null);
+    };
+
+    const handleNameClick = (e, order) => {
+        e.stopPropagation();
+        setSelectedOrder(order);
+        setDetailsOpen(true);
+        handlePopoverClose();
+    };
+
+    const handleDetailsClose = () => {
+        setDetailsOpen(false);
+        setSelectedOrder(null);
     };
 
     const handleEditClick = (e, order) => {
@@ -317,9 +348,10 @@ const OrdersList = () => {
                         <Typography
                             variant="body1"
                             fontWeight="500"
+                            onClick={(e) => handleNameClick(e, order)}
                             onMouseEnter={(e) => handlePopoverOpen(e, order)}
                             onMouseLeave={handlePopoverClose}
-                            sx={{ cursor: 'help', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '4px' }}
+                            sx={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '4px', color: 'primary.main' }}
                         >
                             {order.name}
                         </Typography>
@@ -343,73 +375,6 @@ const OrdersList = () => {
         ))
     );
 
-    const renderCards = () => (
-        <Grid container spacing={3} justifyContent="center">
-            {paginatedOrders.map((order) => (
-                <Grid item xs={12} sm={6} md={4} key={order.id}>
-                    <Card
-                        sx={{
-                            height: '100%',
-                            borderRadius: 2,
-                            position: 'relative',
-                            overflow: 'hidden',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                        }}
-                    >
-                        <Box sx={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            height: '4px',
-                            width: '100%',
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                        }} />
-                        <CardContent sx={{ pt: 3 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 1.5 }}>
-                                {renderAvatar(order)}
-                                <Box>
-                                    <Typography
-                                        variant="h6"
-                                        component="div"
-                                        fontWeight="600"
-                                        onMouseEnter={(e) => handlePopoverOpen(e, order)}
-                                        onMouseLeave={handlePopoverClose}
-                                        sx={{ cursor: 'help' }}
-                                    >
-                                        {order.name}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        {order.createdAt ? timeAgo(order.createdAt.toDate()) : 'N/A'}
-                                    </Typography>
-                                </Box>
-                            </Box>
-                            <Typography variant="body2" sx={{ mb: 0.5 }}><strong>Telecaller:</strong> {order.telecaller}</Typography>
-                            <Typography variant="body2" sx={{ mb: 2 }}><strong>Assigned:</strong> {order.assignedEditorNames?.join(', ')}</Typography>
-
-                            {renderStatusChip(order)}
-                            <Box sx={{ position: 'absolute', top: 10, right: 10 }}>
-                                <IconButton
-                                    onClick={(e) => handleEditClick(e, order)}
-                                    size="small"
-                                    sx={{ bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: 'white' }, mr: 1 }}
-                                >
-                                    <EditIcon />
-                                </IconButton>
-                                <IconButton
-                                    onClick={(e) => handleDeleteClick(e, order)}
-                                    size="small"
-                                    sx={{ bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: 'white' }, color: 'error.main' }}
-                                >
-                                    <DeleteIcon />
-                                </IconButton>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                </Grid>
-            ))}
-        </Grid>
-    );
-
     return (
         <Box>
             <Box sx={{ mb: 3 }}>
@@ -428,29 +393,25 @@ const OrdersList = () => {
                     }}
                 />
             </Box>
-            {isMobile ? (
-                renderCards()
-            ) : (
-                <Paper sx={{ borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                    <TableContainer>
-                        <Table sx={{ minWidth: 650 }} aria-label="orders table">
-                            <TableHead sx={{ '& .MuiTableCell-root': { fontWeight: '600', backgroundColor: 'action.hover' } }}>
-                                <TableRow>
-                                    <TableCell>Customer Name</TableCell>
-                                    <TableCell>Telecaller</TableCell>
-                                    <TableCell>Assigned To</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Age</TableCell>
-                                    <TableCell>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {renderOrders()}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Paper>
-            )}
+            <Paper sx={{ borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <TableContainer>
+                    <Table sx={{ minWidth: 650 }} aria-label="orders table">
+                        <TableHead sx={{ '& .MuiTableCell-root': { fontWeight: '600', backgroundColor: 'action.hover' } }}>
+                            <TableRow>
+                                <TableCell>Customer Name</TableCell>
+                                <TableCell>Telecaller</TableCell>
+                                <TableCell>Assigned To</TableCell>
+                                <TableCell>Status</TableCell>
+                                <TableCell>Age</TableCell>
+                                <TableCell>Actions</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {renderOrders()}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
             {pageCount > 1 && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                     <Pagination
@@ -582,6 +543,95 @@ const OrdersList = () => {
                     <Button onClick={() => setDeleteOpen(false)} color="inherit">Cancel</Button>
                     <Button onClick={handleDeleteConfirm} color="error" variant="contained">
                         {deleteStep === 1 ? "Proceed" : "Yes, Delete Permanently"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Full Details Modal */}
+            <Dialog
+                open={detailsOpen}
+                onClose={handleDetailsClose}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    Order Details
+                    <IconButton onClick={handleDetailsClose}>
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent dividers>
+                    {selectedOrder && (
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                                <Box
+                                    component="img"
+                                    src={selectedOrder.sampleImageUrl || 'https://via.placeholder.com/400x300?text=No+Image'}
+                                    alt={selectedOrder.name}
+                                    sx={{
+                                        width: '100%',
+                                        borderRadius: 2,
+                                        maxHeight: 500,
+                                        objectFit: 'contain',
+                                        bgcolor: '#f5f5f5'
+                                    }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="h5" fontWeight="bold" gutterBottom>
+                                    {selectedOrder.name}
+                                </Typography>
+
+                                <Box sx={{ mb: 2 }}>
+                                    {renderStatusChip(selectedOrder)}
+                                </Box>
+
+                                <Typography variant="subtitle1" fontWeight="bold" color="text.secondary" gutterBottom>
+                                    Telecaller
+                                </Typography>
+                                <Typography variant="body1" paragraph>
+                                    {selectedOrder.telecaller}
+                                </Typography>
+
+                                <Typography variant="subtitle1" fontWeight="bold" color="text.secondary" gutterBottom>
+                                    Assigned Editors
+                                </Typography>
+                                <Typography variant="body1" paragraph>
+                                    {selectedOrder.assignedEditorNames?.join(', ') || 'Unassigned'}
+                                </Typography>
+
+                                <Typography variant="subtitle1" fontWeight="bold" color="text.secondary" gutterBottom>
+                                    Created At
+                                </Typography>
+                                <Typography variant="body1" paragraph>
+                                    {selectedOrder.createdAt ? new Date(selectedOrder.createdAt.seconds * 1000).toLocaleString() : 'N/A'}
+                                </Typography>
+
+                                {selectedOrder.remark && (
+                                    <Box sx={{ mt: 2, p: 2, bgcolor: '#fff8e1', borderRadius: 2, border: '1px dashed #ffe0b2' }}>
+                                        <Typography variant="subtitle2" fontWeight="bold" color="warning.dark">
+                                            Remark
+                                        </Typography>
+                                        <Typography variant="body2">
+                                            {selectedOrder.remark}
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Grid>
+                        </Grid>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleDetailsClose}>Close</Button>
+                    <Button
+                        variant="contained"
+                        onClick={(e) => {
+                            handleDetailsClose();
+                            handleEditClick(e, selectedOrder);
+                        }}
+                        startIcon={<EditIcon />}
+                    >
+                        Edit
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+
 import {
     AppBar,
     Toolbar,
@@ -31,12 +32,19 @@ import {
     Assessment as AssessmentIcon,
     Logout as LogoutIcon,
     Build as BuildIcon,
+    Notifications as NotificationsIcon,
+    ArrowBack as ArrowBackIcon,
+    Report as ReportIcon,
 } from '@mui/icons-material';
 import Analytics from './Analytics';
 import OrderForm from './OrderForm';
+import SelfOrderForm from './SelfOrderForm';
 import OrdersList from './OrdersList';
 import EditorDashboard from './EditorDashboard';
-import EditorInsights from './EditorInsights';
+import TeamLeaderDashboard from './TeamLeaderDashboard';
+import EditorManagement from './EditorManagement';
+import NotificationCenter from './NotificationCenter';
+import OverdueOrders from './OverdueOrders';
 
 
 const drawerWidth = 240;
@@ -49,6 +57,8 @@ const Dashboard = () => {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [currentView, setCurrentView] = useState(isTeamLeader ? 'analytics' : 'orders');
     const [pendingCount, setPendingCount] = useState(0);
+    const [viewHistory, setViewHistory] = useState([]);
+    const [highlightedOrderId, setHighlightedOrderId] = useState(null);
 
     useEffect(() => {
         if (isTeamLeader || !user?.email) return;
@@ -56,7 +66,7 @@ const Dashboard = () => {
         const q = query(
             collection(db, 'orders'),
             where('assignedEditorEmails', 'array-contains', user.email),
-            where('status', '==', 'pending')
+            where('status', 'in', ['pending', 'in-progress'])
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -71,16 +81,83 @@ const Dashboard = () => {
     };
 
     const handleLogout = async () => {
+        if (user?.uid) {
+            localStorage.removeItem(`sessionStart_${user.uid}`);
+        }
         await logout();
         navigate('/login');
+    };
+
+    useEffect(() => {
+        if (!user) return;
+
+        // Auto logout after 12 hours (12 * 60 * 60 * 1000 ms)
+        const SESSION_TIMEOUT = 12 * 60 * 60 * 1000;
+        const sessionKey = `sessionStart_${user.uid}`;
+
+        const checkSession = () => {
+            // 1. Get the actual sign-in time from Firebase
+            const metadataTime = user.metadata?.lastSignInTime
+                ? new Date(user.metadata.lastSignInTime).getTime()
+                : Date.now();
+
+            // 2. Get the stored session start time
+            let sessionStart = localStorage.getItem(sessionKey);
+            let sessionStartTime = sessionStart ? parseInt(sessionStart, 10) : 0;
+
+            // 3. If no stored time, or if the actual login is NEWER than stored time (fresh login), update storage
+            if (!sessionStart || isNaN(sessionStartTime) || metadataTime > sessionStartTime) {
+                sessionStartTime = metadataTime;
+                localStorage.setItem(sessionKey, sessionStartTime.toString());
+            }
+
+            const now = Date.now();
+            const timeElapsed = now - sessionStartTime;
+
+            if (timeElapsed >= SESSION_TIMEOUT) {
+                handleLogout();
+            } else {
+                const timeRemaining = SESSION_TIMEOUT - timeElapsed;
+                const timer = setTimeout(() => {
+                    handleLogout();
+                    alert("Session expired. You have been logged out.");
+                }, timeRemaining);
+                return () => clearTimeout(timer);
+            }
+        };
+
+        return checkSession();
+    }, [user]);
+
+    const handleViewChange = (newView) => {
+        if (newView === currentView) return;
+        setViewHistory(prev => [...prev, currentView]);
+        setCurrentView(newView);
+    };
+
+    const handleBack = () => {
+        if (viewHistory.length > 0) {
+            const prevView = viewHistory[viewHistory.length - 1];
+            setViewHistory(prev => prev.slice(0, -1));
+            setCurrentView(prevView);
+        }
+    };
+
+    const handleNotificationClick = (orderId) => {
+        if (orderId) {
+            setHighlightedOrderId(orderId);
+            handleViewChange('orders');
+        }
     };
 
     const menuItems = isTeamLeader ? [
         { text: 'Dashboard', icon: <DashboardIcon />, view: 'analytics' },
         { text: 'Orders', icon: <ListIcon />, view: 'orders' },
         { text: 'New Order', icon: <AddIcon />, view: 'create' },
-        { text: 'Performance', icon: <AssessmentIcon />, view: 'performance' },
-
+        { text: 'TL Dashboard', icon: <DashboardIcon />, view: 'tl-dashboard' },
+        { text: 'Editor Insights', icon: <AssessmentIcon />, view: 'User Management' },
+        { text: 'Overdue Orders', icon: <ReportIcon />, view: 'overdue-orders' },
+        //text: 'Notifications', icon: <Badge badgeContent={pendingCount} color="error"><NotificationsIcon /></Badge>, view: 'notifications' },
     ] : [
         {
             text: 'My Tasks',
@@ -91,20 +168,32 @@ const Dashboard = () => {
             ),
             view: 'orders'
         },
+        { text: 'Self Order', icon: <AddIcon />, view: 'self-order' },
+        // { text: 'Notifications', icon: <Badge badgeContent={pendingCount} color="error"><NotificationsIcon /></Badge>, view: 'notifications' },
     ];
 
     const renderView = () => {
         switch (currentView) {
             case 'analytics':
-                return <Analytics onNavigateToPerformance={() => setCurrentView('performance')} />;
+                return <Analytics onNavigateToPerformance={() => handleViewChange('User Management')} />;
             case 'create':
-                return <OrderForm onOrderCreated={() => setCurrentView('orders')} />;
+                return <OrderForm onOrderCreated={() => handleViewChange('orders')} />;
+            case 'self-order':
+                return <SelfOrderForm onOrderCreated={() => handleViewChange('orders')} />;
             case 'orders':
-                return isTeamLeader ? <OrdersList /> : <EditorDashboard />;
-            case 'performance':
-                return <EditorInsights />;
+                return isTeamLeader
+                    ? <OrdersList highlightOrderId={highlightedOrderId} onClearHighlight={() => setHighlightedOrderId(null)} />
+                    : <EditorDashboard highlightOrderId={highlightedOrderId} onClearHighlight={() => setHighlightedOrderId(null)} />;
             case 'migration':
                 return <MigrationTool />;
+            case 'tl-dashboard':
+                return <TeamLeaderDashboard />;
+            case 'User Management':
+                return <EditorManagement />;
+            case 'overdue-orders':
+                return <OverdueOrders />;
+            case 'notifications':
+                return <NotificationCenter fullPage={true} onNotificationClick={handleNotificationClick} />;
             default:
                 return <div>Select a view</div>;
         }
@@ -114,8 +203,11 @@ const Dashboard = () => {
 
     const dateOptions = { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' };
     const currentDate = new Date().toLocaleDateString('en-GB', dateOptions);
-    const displayName = user?.displayName || user?.email?.split('@')[0] || 'User';
+    const displayName = user?.displayName || user?.email?.split('@')[0] || user.displayName || 'User';
     const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
+
+
 
     const drawer = (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -137,7 +229,7 @@ const Dashboard = () => {
                         <ListItem
                             button
                             key={item.text}
-                            onClick={() => { setCurrentView(item.view); if (isMobile) setMobileOpen(false); }}
+                            onClick={() => { handleViewChange(item.view); if (isMobile) setMobileOpen(false); }}
                             sx={{
                                 mb: 1,
                                 borderRadius: '8px',
@@ -178,7 +270,7 @@ const Dashboard = () => {
     );
 
     return (
-        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+        <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
             <CssBaseline />
             <AppBar
                 position="fixed"
@@ -199,6 +291,15 @@ const Dashboard = () => {
                     >
                         <MenuIcon />
                     </IconButton>
+                    {viewHistory.length > 0 && (
+                        <IconButton
+                            color="inherit"
+                            onClick={handleBack}
+                            sx={{ mr: 2 }}
+                        >
+                            <ArrowBackIcon />
+                        </IconButton>
+                    )}
                     <Typography variant="h5" noWrap component="div" sx={{ fontWeight: 700 }}>
                         {currentViewTitle}
                     </Typography>
@@ -209,8 +310,9 @@ const Dashboard = () => {
                     </Box>
                     <Box sx={{ flexGrow: 1 }} />
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600, display: { xs: 'none', sm: 'block' } }}>
-                            {formattedName}
+                        <NotificationCenter onNotificationClick={handleNotificationClick} />
+                        <Typography variant="subtitle1" noWrap sx={{ fontWeight: 600, display: 'block', maxWidth: { xs: 100, sm: 'none' } }}>
+                            {user.email}
                         </Typography>
                         <Chip
                             label={role === 'team-leader' ? 'Team Leader' : 'Editor'}
@@ -226,8 +328,8 @@ const Dashboard = () => {
                                 }
                             }}
                         />
-                        <Avatar sx={{ width: 40, height: 40, bgcolor: 'rgba(255, 255, 255, 0.2)' }}>
-                            {user?.email?.charAt(0).toUpperCase()}
+                        <Avatar src={user?.photoURL || user.photoURL} sx={{ width: 40, height: 40, bgcolor: 'rgba(255, 255, 255, 0.2)' }}>
+
                         </Avatar>
                     </Box>
                 </Toolbar>
@@ -258,8 +360,14 @@ const Dashboard = () => {
                 sx={{
                     flexGrow: 1,
                     p: { xs: 1.5, sm: 3 },
-                    width: { sm: `calc(100% - ${drawerWidth}px)` },
+                    minWidth: 0,
+                    height: '100%',
+                    overflow: 'auto',
                     backgroundColor: '#f4f6f8', // A soft, modern background color
+                    scrollbarWidth: 'none', // Hide scrollbar for Firefox
+                    '&::-webkit-scrollbar': {
+                        display: 'none', // Hide scrollbar for Chrome, Safari, and Opera
+                    },
                 }}
             >
                 <Toolbar />
