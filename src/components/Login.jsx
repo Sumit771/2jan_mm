@@ -83,10 +83,12 @@ const Login = () => {
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        backgroundColor: 'background.paper',
+                        backgroundColor: 'rgba(255, 255, 255, 0.75)',
+                        backdropFilter: 'blur(10px)',
                         padding: { xs: 2, sm: 4 },
                         borderRadius: 2,
-                        boxShadow: 5,
+                        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+                        border: '1px solid rgba(255, 255, 255, 0.4)',
                     }}
                 >
                     <Typography component="h1" variant="h5">

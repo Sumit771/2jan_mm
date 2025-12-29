@@ -39,7 +39,7 @@ import {
 import Analytics from './Analytics';
 import OrderForm from './OrderForm';
 import SelfOrderForm from './SelfOrderForm';
-import OrdersList from './OrdersList';
+//import OrdersList from './OrdersList';
 import EditorDashboard from './EditorDashboard';
 import TeamLeaderDashboard from './TeamLeaderDashboard';
 import EditorManagement from './EditorManagement';
@@ -152,7 +152,7 @@ const Dashboard = () => {
 
     const menuItems = isTeamLeader ? [
         { text: 'Dashboard', icon: <DashboardIcon />, view: 'analytics' },
-        { text: 'Orders', icon: <ListIcon />, view: 'orders' },
+        //  { text: 'Orders', icon: <ListIcon />, view: 'orders' },
         { text: 'New Order', icon: <AddIcon />, view: 'create' },
         { text: 'TL Dashboard', icon: <DashboardIcon />, view: 'tl-dashboard' },
         { text: 'Editor Insights', icon: <AssessmentIcon />, view: 'User Management' },
@@ -220,7 +220,7 @@ const Dashboard = () => {
                     backgroundClip: 'text',
                     textFillColor: 'transparent',
                 }}>
-                    MomentMerge
+                    MergeMoments
                 </Typography>
             </Toolbar>
             <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
@@ -347,8 +347,9 @@ const Dashboard = () => {
                         '& .MuiDrawer-paper': {
                             boxSizing: 'border-box',
                             width: drawerWidth,
-                            borderRight: 'none',
-                            backgroundColor: 'background.paper',
+                            borderRight: '1px solid rgba(255, 255, 255, 0.3)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.65)',
+                            backdropFilter: 'blur(12px)',
                         },
                     }}
                 >
@@ -363,7 +364,7 @@ const Dashboard = () => {
                     minWidth: 0,
                     height: '100%',
                     overflow: 'auto',
-                    backgroundColor: '#f4f6f8', // A soft, modern background color
+                    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
                     scrollbarWidth: 'none', // Hide scrollbar for Firefox
                     '&::-webkit-scrollbar': {
                         display: 'none', // Hide scrollbar for Chrome, Safari, and Opera

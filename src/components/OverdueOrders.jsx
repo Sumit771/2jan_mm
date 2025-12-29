@@ -6,7 +6,7 @@ import {
     Box, Typography, Paper, Tabs, Tab, Grid, Card, CardContent,
     TextField, Button, Alert, CircularProgress
 } from '@mui/material';
-import { WarningAmber as WarningIcon } from '@mui/icons-material';
+import { WarningAmber as WarningIcon, WidthFull } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
 const OverdueOrders = () => {
@@ -104,9 +104,9 @@ const OverdueOrders = () => {
     }
 
     return (
-        <Box>
+        <Box sx={{ width: '78vw' }}>
             <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>Overdue Orders</Typography>
-            <Paper sx={{ mb: 3 }}>
+            <Paper sx={{ mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                 <Tabs value={tab} onChange={(e, newValue) => setTab(newValue)} centered>
                     <Tab label={`3+ Days Old (${orders3Days.length})`} value="3days" />
                     <Tab label={`30+ Days Old (${orders30Days.length})`} value="30days" />
@@ -120,7 +120,7 @@ const OverdueOrders = () => {
                     <Grid container spacing={3}>
                         {currentOrders.map(order => (
                             <Grid item xs={12} md={6} key={order.id}>
-                                <Card sx={{ borderLeft: '5px solid #d32f2f', height: '100%' }}>
+                                <Card sx={{ borderLeft: '5px solid #d32f2f', height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                     <CardContent>
                                         <Box display="flex" alignItems="center" mb={2}>
                                             <WarningIcon color="error" sx={{ mr: 1 }} />

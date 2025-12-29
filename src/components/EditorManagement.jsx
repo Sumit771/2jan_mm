@@ -157,11 +157,11 @@ const EditorManagement = () => {
     if (loading) return <CircularProgress />;
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h5" gutterBottom>Editor Insights & Management</Typography>
 
             {/* Analytics Dashboard Section */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={4}>
                     <Card>
                         <CardContent>
@@ -229,17 +229,17 @@ const EditorManagement = () => {
                 </Grid>
             </Grid>
 
-            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-                <Table>
+            <TableContainer component={Paper} sx={{ width: '100%' }}>
+                <Table size="small">
                     <TableHead>
                         <TableRow>
                             <TableCell>Editor</TableCell>
-                            <TableCell>Email</TableCell>
-                            <TableCell>Joined Date</TableCell>
+                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Email</TableCell>
+                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Joined Date</TableCell>
                             <TableCell>Status</TableCell>
-                            <TableCell>Performance (Rating)</TableCell>
-                            <TableCell>Active Orders</TableCell>
-                            <TableCell>Orders Completed</TableCell>
+                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Performance (Rating)</TableCell>
+                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Active Orders</TableCell>
+                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Orders Completed</TableCell>
                             <TableCell align="right">Actions</TableCell>
                         </TableRow>
                     </TableHead>
@@ -250,13 +250,13 @@ const EditorManagement = () => {
                                     <Stack direction="row" spacing={2} alignItems="center">
                                         <Avatar src={editor.photoURL}>{editor.displayName?.charAt(0)}</Avatar>
                                         <Stack direction="column" alignItems="flex-start">
-                                            <Typography variant="body2">{editor.displayName}</Typography>
+                                            <Typography variant="body2" noWrap sx={{ maxWidth: { xs: 100, sm: 150 } }}>{editor.displayName}</Typography>
                                             {isNewEditor(editor.createdAt) && <Chip label="NEW" color="primary" size="small" sx={{ height: 16, fontSize: '0.6rem', width: 'fit-content' }} />}
                                         </Stack>
                                     </Stack>
                                 </TableCell>
-                                <TableCell>{editor.email}</TableCell>
-                                <TableCell>
+                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{editor.email}</TableCell>
+                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                                     {editor.createdAt?.seconds
                                         ? new Date(editor.createdAt.seconds * 1000).toLocaleDateString()
                                         : 'N/A'}
@@ -268,13 +268,13 @@ const EditorManagement = () => {
                                         size="small"
                                     />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                                     <Rating value={editor.performance?.rating || 0} readOnly precision={0.1} size="small" />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                                     {pendingOrders[editor.email] || 0}
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                                     {completedOrders[editor.email] || 0}
                                 </TableCell>
                                 <TableCell align="right">

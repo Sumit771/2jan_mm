@@ -147,9 +147,9 @@ const UserManagement = ({ onBack }) => {
                 </Button>
             </Box>
 
-            <TableContainer component={Paper} sx={{ borderRadius: 4, overflowX: { xs: 'hidden', sm: 'auto' } }}>
+            <TableContainer component={Paper} sx={{ borderRadius: 4, overflowX: { xs: 'hidden', sm: 'auto' }, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                 <Table sx={{ tableLayout: { xs: 'fixed', sm: 'auto' } }}>
-                    <TableHead sx={{ bgcolor: '#f8f9fa' }}>
+                    <TableHead sx={{ bgcolor: 'rgba(248, 249, 250, 0.6)' }}>
                         <TableRow>
                             <TableCell sx={{ width: { xs: 60, sm: 'auto' }, px: { xs: 1, sm: 2 } }}><strong>Avatar</strong></TableCell>
                             <TableCell sx={{ px: { xs: 1, sm: 2 } }}><strong>Name</strong></TableCell>

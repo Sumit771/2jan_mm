@@ -57,9 +57,19 @@ const SelfOrderForm = ({ onOrderCreated }) => {
     });
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [bbCode, setBbCode] = useState('');
 
     const handleChange = (e) =>
         setForm({ ...form, [e.target.name]: e.target.value });
+
+    const handleBbCodeChange = (e) => {
+        const val = e.target.value;
+        setBbCode(val);
+        const match = val.match(/\[img\](.*?)\[\/img\]/);
+        if (match && match[1]) {
+            setForm((prev) => ({ ...prev, sampleImageUrl: match[1] }));
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -114,8 +124,15 @@ const SelfOrderForm = ({ onOrderCreated }) => {
     };
 
     return (
-        <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4 }}>
-            <Paper sx={{ p: 4, borderRadius: 4 }}>
+        <Box sx={{ maxWidth: '100%', mx: 'auto', mt: 4 }}>
+            <Paper sx={{
+                p: 4,
+                borderRadius: 4,
+                backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)'
+            }}>
                 <Typography variant="h4" fontWeight={700} mb={4}>
                     Create Self Order
                 </Typography>
@@ -123,13 +140,14 @@ const SelfOrderForm = ({ onOrderCreated }) => {
                 <Box component="form" onSubmit={handleSubmit}>
                     <Grid container spacing={3}>
                         <Grid item xs={12}>
-                            <GradientTextField fullWidth label="Client / Order Name" name="name" value={form.name} onChange={handleChange} required />
+                            <GradientTextField fullWidth sx={{ width: '320px' }} label="Client / Order Name" name="name" value={form.name} onChange={handleChange} required />
                         </Grid>
-                        <Grid item xs={12} md={6}>
-                            <GradientTextField fullWidth label="Telecaller" name="telecaller" value={form.telecaller} onChange={handleChange} required />
+
+                        <Grid item xs={12}>
+                            <GradientTextField fullWidth sx={{ width: '320px' }} label="Telecaller" name="telecaller" value={form.telecaller} onChange={handleChange} required />
                         </Grid>
-                        <Grid item xs={12} md={6}>
-                            <FormControl fullWidth>
+                        <Grid item xs={12}>
+                            <FormControl fullWidth sx={{ width: '320px' }}>
                                 <InputLabel>Priority</InputLabel>
                                 <Select name="priority" value={form.priority} label="Priority" onChange={handleChange}>
                                     <MenuItem value="normal">Normal</MenuItem>
@@ -138,9 +156,24 @@ const SelfOrderForm = ({ onOrderCreated }) => {
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={12}>
-                            <GradientTextField fullWidth label="Remark" name="remark" value={form.remark} onChange={handleChange} multiline rows={3} />
+                        <Grid item xs={12} md={6}>
+                            <GradientTextField sx={{ width: '320px', height: 'auto' }} label="Remark" name="remark" value={form.remark} onChange={handleChange} multiline rows={3} />
                         </Grid>
+                        {/* 
+                        <Grid item >
+                            <GradientTextField
+                                xs={{ width: '600px' }}
+                                label="Remark"
+                                name="remark"
+                                value={form.remark}
+                                onChange={handleChange}
+                                multiline
+
+                                minRows={3}
+                                maxRows={16}
+                            />
+                        </Grid> */}
+
                         <Grid item xs={12}>
                             <Typography fontWeight={600} mb={1}>Sample Image</Typography>
                             <RadioGroup row name="imageType" value={form.imageType} onChange={handleChange}>
@@ -153,7 +186,17 @@ const SelfOrderForm = ({ onOrderCreated }) => {
                                     <VisuallyHiddenInput type="file" onChange={(e) => setFile(e.target.files[0])} />
                                 </Button>
                             ) : (
-                                <GradientTextField fullWidth label="Image URL" name="sampleImageUrl" value={form.sampleImageUrl} onChange={handleChange} sx={{ mt: 2 }} />
+                                <>
+                                    <GradientTextField
+                                        fullWidth
+                                        label="Paste BBCode"
+                                        value={bbCode}
+                                        onChange={handleBbCodeChange}
+                                        sx={{ mt: 2 }}
+                                        helperText="Paste full BBCode to auto-extract URL"
+                                    />
+                                    <GradientTextField fullWidth label="Image URL" name="sampleImageUrl" value={form.sampleImageUrl} onChange={handleChange} sx={{ mt: 2 }} />
+                                </>
                             )}
                             {file && form.imageType === 'upload' && <Typography variant="caption" display="block" sx={{ mt: 1 }}>Selected: {file.name}</Typography>}
                         </Grid>

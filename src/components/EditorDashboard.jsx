@@ -346,12 +346,16 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
     }
 
     return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4, width: '75vw' }}>
             <Box display="flex" alignItems="center" gap={2} mb={4}>
                 <Typography variant="h4" fontWeight={700}>
                     My Tasks
                 </Typography>
-
+                {user?.displayName && (
+                    <Typography variant="h5" color="text.secondary" fontWeight={500}>
+                        - {user.displayName}
+                    </Typography>
+                )}
             </Box>
 
             <Box mb={4} sx={{ display: 'flex', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
@@ -452,7 +456,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                         const overdueText = isOverdue30 ? '30+ Days' : '3+ Days';
 
                         return (
-                            <Grid item xs={6} sm={6} md={4} lg={3} key={order.id}>
+                            <Grid item xl={6} sm={6} md={4} lg={3} key={order.id}>
                                 <Paper
                                     sx={{
                                         p: { xs: 1.5, sm: 2 },
@@ -460,7 +464,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                         boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
                                         height: '100%',
                                         minHeight: 360,
-                                        width: '100%',
+                                        width: '220px',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         justifyContent: 'space-between', // Distribute space
@@ -589,7 +593,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                     >
                                         <Box
                                             component="img"
-                                            src={order.sampleImageUrl || 'https://via.placeholder.com/400x200?text=No+Image'}
+                                            src={order.sampleImageUrl || 'No Image Available'}
                                             alt="Order Sample"
                                             sx={{
                                                 width: '100%',
@@ -626,7 +630,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                         </Typography>
 
                                         {/* Remark Section */}
-                                        <Box sx={{ mb: 1.5, overflow: 'hidden' }}>
+                                        <Box sx={{ mb: 1.5, overflow: 'hidden', width: '100%' }}>
                                             {order.remark && (
                                                 <Typography variant="caption" sx={{
                                                     fontStyle: 'italic',
@@ -725,7 +729,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                             <Grid item xs={12} md={6}>
                                 <Box
                                     component="img"
-                                    src={selectedOrder.sampleImageUrl || 'https://via.placeholder.com/400x200?text=No+Image'}
+                                    src={selectedOrder.sampleImageUrl || 'No Image Available'}
                                     alt={selectedOrder.name}
                                     sx={{
                                         width: '100%',

@@ -187,9 +187,9 @@ const EditorInsights = () => {
     }
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: { xs: 2, md: 3 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
+                <Typography variant="h4" component="h1" gutterBottom sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
                     Editor Insights
                 </Typography>
                 <Tooltip title="Refresh Data">
@@ -199,7 +199,7 @@ const EditorInsights = () => {
                 </Tooltip>
             </Box>
 
-            <Grid container spacing={3}>
+            <Grid container spacing={{ xs: 2, md: 3 }}>
                 {/* Editor List */}
                 <Grid item xs={12} md={3}>
                     <Box
@@ -223,7 +223,7 @@ const EditorInsights = () => {
                                 display: 'flex',
                                 gap: 2,
                                 flexWrap: 'wrap',
-                                justifyContent: { xs: 'center', md: 'flex-start' },
+                                justifyContent: 'flex-start',
                             }}
                         >
                             {enrichedEditorStats.map((editor) => {
@@ -239,13 +239,15 @@ const EditorInsights = () => {
                                             gap: 1.5,
                                             cursor: 'pointer',
                                             p: { xs: 1, md: 2 },
-                                            minWidth: { md: 240 },
+                                            minWidth: { xs: 160, md: 240 },
+                                            flexShrink: 0,
                                             borderRadius: 2,
                                             border: '1px solid',
                                             borderColor: isSelected ? 'transparent' : 'divider',
                                             background: isSelected
                                                 ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                                                : 'background.paper',
+                                                : 'rgba(255, 255, 255, 0.6)',
+                                            backdropFilter: 'blur(10px)',
                                             color: isSelected ? 'white' : 'text.primary',
                                             boxShadow: isSelected
                                                 ? '0 4px 12px rgba(118,75,162,0.3)'
@@ -268,9 +270,9 @@ const EditorInsights = () => {
                                             {editor.name?.charAt(0)?.toUpperCase() || 'E'}
                                         </Avatar>
 
-                                        {/* Text – hidden on mobile */}
-                                        <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                                            <Typography fontWeight={600}>
+                                        {/* Text */}
+                                        <Box>
+                                            <Typography fontWeight={600} sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}>
                                                 {editor.name || editor.email}
                                             </Typography>
                                             <Typography
@@ -298,7 +300,7 @@ const EditorInsights = () => {
                     {selectedEditor ? (
                         <>
                             {/* Profile Header */}
-                            <Card sx={{ mb: 3 }}>
+                            <Card sx={{ mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                 <CardContent>
                                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                                         <Avatar sx={{ width: 64, height: 64, mr: 2 }}>
@@ -306,7 +308,7 @@ const EditorInsights = () => {
                                         </Avatar>
                                         <Box>
                                             <Typography variant="h5">{selectedEditor.name || 'Unknown Editor'}</Typography>
-                                            <Typography variant="body2" color="text.secondary">
+                                            <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
                                                 {selectedEditor.email}
                                             </Typography>
                                             {/* <Chip
@@ -322,8 +324,8 @@ const EditorInsights = () => {
 
                             {/* Summary Cards */}
                             <Grid container spacing={2} sx={{ mb: 3 }}>
-                                <Grid item xs={12} sm={3}>
-                                    <Card>
+                                <Grid item xs={6} sm={4} md={3}>
+                                    <Card sx={{ backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <AssignmentIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
                                             <Typography variant="h4">{selectedEditor?.liveTotalAssigned || 0}</Typography>
@@ -333,8 +335,8 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={12} sm={3}>
-                                    <Card>
+                                <Grid item xs={6} sm={4} md={3}>
+                                    <Card sx={{ backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <CheckCircleIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
                                             <Typography variant="h4">{selectedEditor?.liveTotalCompleted || 0}</Typography>
@@ -344,8 +346,8 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={12} sm={3}>
-                                    <Card>
+                                <Grid item xs={6} sm={4} md={3}>
+                                    <Card sx={{ backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <ScheduleIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
                                             <Typography variant="h4">{averageTurnaround}h</Typography>
@@ -355,8 +357,8 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={12} sm={3}>
-                                    <Card>
+                                <Grid item xs={6} sm={4} md={3}>
+                                    <Card sx={{ backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <WorkIcon color={getWorkloadColor(localMetrics.workload)} sx={{ fontSize: 40, mb: 1, color: '#F44336' }} />
                                             <Typography variant="h4">{localMetrics.workload}</Typography>
@@ -366,8 +368,8 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={12} sm={3}>
-                                    <Card>
+                                <Grid item xs={6} sm={4} md={3}>
+                                    <Card sx={{ backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <GroupIcon sx={{ fontSize: 40, mb: 1, color: '#9C27B0' }} />
                                             <Typography variant="h4">{localMetrics.sharedPending}</Typography>
@@ -377,8 +379,8 @@ const EditorInsights = () => {
                                         </CardContent>
                                     </Card>
                                 </Grid>
-                                <Grid item xs={12} sm={3}>
-                                    <Card>
+                                <Grid item xs={6} sm={4} md={3}>
+                                    <Card sx={{ backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                         <CardContent sx={{ textAlign: 'center' }}>
                                             <GroupIcon sx={{ fontSize: 40, mb: 1, color: '#7B1FA2' }} />
                                             <Typography variant="h4">{localMetrics.sharedInProgress}</Typography>
@@ -391,7 +393,7 @@ const EditorInsights = () => {
                             </Grid>
 
                             {/* Performance Chart */}
-                            <Card sx={{ mb: 3 }}>
+                            <Card sx={{ mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                 <CardContent>
                                     <Typography variant="h6" gutterBottom>
                                         <TrendingUpIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -411,7 +413,7 @@ const EditorInsights = () => {
                             </Card>
 
                             {/* Turnaround Time Chart */}
-                            <Card sx={{ mb: 3 }}>
+                            <Card sx={{ mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)', display: { xs: 'none', md: 'block' } }}>
                                 <CardContent>
                                     <Typography variant="h6" gutterBottom>
                                         <TimelineIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -430,7 +432,7 @@ const EditorInsights = () => {
                             </Card>
 
                             {/* Recent Activity */}
-                            <Card sx={{ mb: 3 }}>
+                            <Card sx={{ mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                 <CardContent>
                                     <Typography variant="h6" gutterBottom>
                                         Recent Activity
@@ -456,7 +458,7 @@ const EditorInsights = () => {
                             </Card>
 
                             {/* Editor's Orders */}
-                            <Card>
+                            <Card sx={{ backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                                 <CardContent>
                                     <Typography variant="h6" gutterBottom>
                                         <AssignmentIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -478,7 +480,6 @@ const EditorInsights = () => {
                                                 <TableBody>
                                                     {editorOrders.map((order) => (
                                                         <TableRow key={order.id}>
-                                                            <TableCell>{order.telecaller}</TableCell>
                                                             <TableCell>
                                                                 <Chip
                                                                     label={order.status}

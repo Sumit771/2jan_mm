@@ -76,8 +76,9 @@ const OrderForm = ({ onOrderCreated }) => {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedEditors = snapshot.docs.map(doc => ({
                 email: doc.data().email,
-                name: doc.data().displayName || doc.data().email
-            }));
+                name: doc.data().displayName || doc.data().email,
+                status: doc.data().status
+            })).filter(e => e.status !== 'Terminated');
             setEditors(fetchedEditors);
         }, (error) => {
             console.error("Error fetching editors:", error);
@@ -152,7 +153,14 @@ const OrderForm = ({ onOrderCreated }) => {
 
     return (
         <Box sx={{ width: { xs: '100%', md: '76vw' }, mx: 'auto' }}>
-            <Paper sx={{ p: { xs: 2, md: 4 }, borderRadius: 4 }}>
+            <Paper sx={{
+                p: { xs: 2, md: 4 },
+                borderRadius: 4,
+                backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)'
+            }}>
                 <Typography variant="h4" fontWeight={700} mb={4}>
                     Create New Order
                 </Typography>

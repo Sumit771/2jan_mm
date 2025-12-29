@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useEditorStats } from '../context/EditorStatsContext';
-import { Card, CardContent, Typography, Grid, Box, Select, MenuItem, FormControl, InputLabel, Button, Chip, LinearProgress, Avatar } from '@mui/material';
+import { Card, CardContent, Typography, Grid, Box, Select, MenuItem, FormControl, InputLabel, Button, Chip, LinearProgress, Avatar, Tooltip as MuiTooltip } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -96,6 +96,14 @@ const Analytics = ({ onNavigateToPerformance }) => {
 
     const pendingData = performanceData.filter(item => item.pending > 0);
 
+    const delayedOrders = orders.filter(o => {
+        const created = o.createdAt?.toDate();
+        if (!created) return false;
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        return (o.status === 'pending' || o.status === 'in-progress') && created < threeDaysAgo;
+    });
+
     // Calculate team performance metrics from live data
     const totalCompleted = orders.filter(o => o.status === 'completed').length;
     const totalAssignedForRate = orders.length; // Using total orders as the base for completion rate
@@ -161,72 +169,83 @@ const Analytics = ({ onNavigateToPerformance }) => {
 
             {/* Summary Cards */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#E3F2FD', borderLeft: '4px solid #2196F3' }}>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.3)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.07)', borderRadius: 4 }}>
                         <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <TotalIcon sx={{ fontSize: 40, color: '#2196F3', mr: 2 }} />
+                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'rgba(33, 150, 243, 0.1)', mr: 2, display: 'flex' }}>
+                                <TotalIcon sx={{ fontSize: 32, color: '#2196F3' }} />
+                            </Box>
                             <Box>
-                                <Typography color="textSecondary" gutterBottom>Total Orders</Typography>
+                                <Typography color="textSecondary" variant="subtitle2" fontWeight="600">Total Orders</Typography>
                                 <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{totalOrders}</Typography>
                             </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid item xs={12} sm={6} md={4}>
                     <Card
-                        sx={{ backgroundColor: '#F3E5F5', borderLeft: '4px solid #9C27B0', cursor: 'pointer' }}
+                        sx={{ height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.3)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.07)', borderRadius: 4, cursor: 'pointer', transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}
                         onClick={() => navigate('/orders/monthly', { state: { orders: monthlyOrders, month: currentMonth, year: currentYear } })}
                     >
                         <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <MonthlyIcon sx={{ fontSize: 40, color: '#9C27B0', mr: 2 }} />
+                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'rgba(156, 39, 176, 0.1)', mr: 2, display: 'flex' }}>
+                                <MonthlyIcon sx={{ fontSize: 32, color: '#9C27B0' }} />
+                            </Box>
                             <Box>
-                                <Typography color="textSecondary" gutterBottom>Orders This Month</Typography>
+                                <Typography color="textSecondary" variant="subtitle2" fontWeight="600">Orders This Month</Typography>
                                 <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{ordersThisMonth}</Typography>
                             </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#FFF3E0', borderLeft: '4px solid #FF9800' }}>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.3)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.07)', borderRadius: 4 }}>
                         <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <PendingIcon sx={{ fontSize: 40, color: '#FF9800', mr: 2 }} />
+                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'rgba(255, 152, 0, 0.1)', mr: 2, display: 'flex' }}>
+                                <PendingIcon sx={{ fontSize: 32, color: '#FF9800' }} />
+                            </Box>
                             <Box>
-                                <Typography color="textSecondary" gutterBottom>Pending Orders</Typography>
+                                <Typography color="textSecondary" variant="subtitle2" fontWeight="600">Pending Orders</Typography>
                                 <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{orders.filter(o => o.status === 'pending').length}</Typography>
                             </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#E8F5E8', borderLeft: '4px solid #4CAF50' }}>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.3)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.07)', borderRadius: 4 }}>
                         <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <TimeIcon sx={{ fontSize: 40, color: '#4CAF50', mr: 2 }} />
+                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'rgba(76, 175, 80, 0.1)', mr: 2, display: 'flex' }}>
+                                <TimeIcon sx={{ fontSize: 32, color: '#4CAF50' }} />
+                            </Box>
                             <Box>
-                                <Typography color="textSecondary" gutterBottom>Completed Orders</Typography>
+                                <Typography color="textSecondary" variant="subtitle2" fontWeight="600">Completed Orders</Typography>
                                 <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{totalCompleted}</Typography>
                             </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#E3F2FD', borderLeft: '4px solid #1976D2' }}>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.3)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.07)', borderRadius: 4 }}>
                         <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <TrendingUpIcon sx={{ fontSize: 40, color: '#1976D2', mr: 2 }} />
+                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'rgba(25, 118, 210, 0.1)', mr: 2, display: 'flex' }}>
+                                <TrendingUpIcon sx={{ fontSize: 32, color: '#1976D2' }} />
+                            </Box>
                             <Box>
-                                <Typography color="textSecondary" gutterBottom>In-Progress</Typography>
+                                <Typography color="textSecondary" variant="subtitle2" fontWeight="600">In-Progress</Typography>
                                 <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{inProgressCount}</Typography>
                             </Box>
                         </CardContent>
                     </Card>
                 </Grid>
 
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ backgroundColor: '#FFFDE7', borderLeft: '4px solid #FFD700' }}>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.3)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.07)', borderRadius: 4 }}>
                         <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-                            <TrophyIcon sx={{ fontSize: 40, color: '#FFD700', mr: 2 }} />
+                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'rgba(255, 215, 0, 0.1)', mr: 2, display: 'flex' }}>
+                                <TrophyIcon sx={{ fontSize: 32, color: '#FFD700' }} />
+                            </Box>
                             <Box>
-                                <Typography color="textSecondary" gutterBottom>Top Performer</Typography>
+                                <Typography color="textSecondary" variant="subtitle2" fontWeight="600">Top Performer</Typography>
                                 <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
                                     {topPerformer ? topPerformer.name : 'N/A'}
                                 </Typography>
@@ -239,22 +258,15 @@ const Analytics = ({ onNavigateToPerformance }) => {
                         </CardContent>
                     </Card>
                 </Grid>
-
             </Grid>
 
-            {/* Shared Metrics */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-
-            </Grid>
-
-            {/* {endd-----------} */}
             {/* Editor Performance Summary Cards */}
 
 
             {/* Analytics Section */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} md={8}>
-                    <Card sx={{ p: 3 }}>
+            <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
+                <Grid item xs={12} md={12} lg={6}>
+                    <Card sx={{ p: { xs: 2, md: 3 }, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)', borderRadius: 3 }}>
                         <Typography variant="h6" gutterBottom>Editor Performance</Typography>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={performanceData}>
@@ -269,8 +281,8 @@ const Analytics = ({ onNavigateToPerformance }) => {
                         </ResponsiveContainer>
                     </Card>
                 </Grid>
-                <Grid item xs={12} md={4}>
-                    <Card sx={{ p: 3 }}>
+                <Grid item xs={12} md={12} lg={3}>
+                    <Card sx={{ p: 3, height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)', borderRadius: 3 }}>
                         <Typography variant="h6" gutterBottom>Pending Orders by Editor</Typography>
                         <Box sx={{ mt: 2 }}>
                             {pendingData.map((item) => (
@@ -285,10 +297,54 @@ const Analytics = ({ onNavigateToPerformance }) => {
                         </Box>
                     </Card>
                 </Grid>
+                <Grid item xs={12} md={12} lg={3}>
+                    <Card sx={{ p: 3, height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)', borderRadius: 3, border: '1px solid #ffcdd2' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                            <Typography variant="h6" color="error" sx={{ fontWeight: 'bold' }}>Delayed Orders &nbsp;</Typography>
+                            <Chip label="  3 Days" color="error" size="small" />
+                        </Box>
+                        <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                            {delayedOrders.map((order) => (
+                                <Card key={order.id} variant="outlined" sx={{ mb: 1.5, p: 1.5, bgcolor: 'rgba(255,255,255,0.6)', borderColor: 'error.light' }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <Box sx={{ width: '70%' }}>
+                                            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 'bold' }}>{order.name || order.id}</Typography>
+                                            <Typography variant="caption" color="error" sx={{ fontWeight: 'bold', display: 'block' }}>Delayed</Typography>
+                                            <Box sx={{ display: 'flex', mt: 1 }}>
+                                                {order.assignedEditorEmails?.map((email) => {
+                                                    const editor = editors.find(e => e.email === email);
+                                                    return (
+                                                        <MuiTooltip key={email} title={editor?.displayName || email} arrow>
+                                                            <Avatar src={editor?.photoURL} sx={{ width: 24, height: 24, mr: 0.5, fontSize: 10 }}>
+                                                                {(!editor?.photoURL) && (editor?.displayName?.[0] || email[0]).toUpperCase()}
+                                                            </Avatar>
+                                                        </MuiTooltip>
+                                                    );
+                                                })}
+                                            </Box>
+                                        </Box>
+                                        {(order.images?.[0] || order.image) && (
+                                            <MuiTooltip
+                                                title={<Box component="img" src={order.images?.[0] || order.image} sx={{ maxWidth: 200, borderRadius: 1 }} />}
+                                                placement="left"
+                                                arrow
+                                            >
+                                                <Avatar src={order.images?.[0] || order.image} variant="rounded" sx={{ width: 40, height: 40, border: '1px solid #ddd', cursor: 'pointer' }} />
+                                            </MuiTooltip>
+                                        )}
+                                    </Box>
+                                </Card>
+                            ))}
+                            {delayedOrders.length === 0 && (
+                                <Typography variant="body2" color="textSecondary" align="center">No delayed orders</Typography>
+                            )}
+                        </Box>
+                    </Card>
+                </Grid>
             </Grid>
 
             {/* Editor Status Overview */}
-            <Card sx={{ p: 3, mb: 4 }}>
+            <Card sx={{ p: 3, mb: 4, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)', borderRadius: 3 }}>
                 <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>Editor Status Overview</Typography>
                 <Grid container spacing={2}>
                     {performanceData.map((editor) => {
@@ -299,7 +355,7 @@ const Analytics = ({ onNavigateToPerformance }) => {
 
                         return (
                             <Grid item xs={12} sm={6} md={3} key={editor.email}>
-                                <Card variant="outlined" sx={{ p: 2 }}>
+                                <Card variant="outlined" sx={{ p: 2, backgroundColor: 'rgba(255, 255, 255, 0.4)' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                                         {editor.photoURL ? (
                                             <Avatar src={editor.photoURL} sx={{ width: 32, height: 32, mr: 1 }} />
@@ -362,7 +418,7 @@ const Analytics = ({ onNavigateToPerformance }) => {
             </Card>
 
             {/* Monthly Orders Graph */}
-            <Card sx={{ p: 3 }}>
+            <Card sx={{ p: 3, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)', borderRadius: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="h6">Monthly Orders</Typography>
                     <FormControl size="small" sx={{ minWidth: 120 }}>

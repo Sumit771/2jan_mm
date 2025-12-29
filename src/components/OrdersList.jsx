@@ -92,8 +92,9 @@ const OrdersList = ({ highlightOrderId, onClearHighlight }) => {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedEditors = snapshot.docs.map(doc => ({
                 email: doc.data().email,
-                name: doc.data().displayName || doc.data().email
-            }));
+                name: doc.data().displayName || doc.data().email,
+                status: doc.data().status
+            })).filter(e => e.status !== 'Terminated');
             setEditors(fetchedEditors);
         }, (error) => {
             console.error("Error fetching editors:", error);
@@ -393,10 +394,10 @@ const OrdersList = ({ highlightOrderId, onClearHighlight }) => {
                     }}
                 />
             </Box>
-            <Paper sx={{ borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <Paper sx={{ borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)', backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)', overflowX: 'auto' }}>
                 <TableContainer>
                     <Table sx={{ minWidth: 650 }} aria-label="orders table">
-                        <TableHead sx={{ '& .MuiTableCell-root': { fontWeight: '600', backgroundColor: 'action.hover' } }}>
+                        <TableHead sx={{ '& .MuiTableCell-root': { fontWeight: '600', backgroundColor: 'rgba(248, 249, 250, 0.6)' } }}>
                             <TableRow>
                                 <TableCell>Customer Name</TableCell>
                                 <TableCell>Telecaller</TableCell>

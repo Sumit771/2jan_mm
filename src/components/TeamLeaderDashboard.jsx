@@ -201,8 +201,9 @@ const TeamLeaderDashboard = () => {
                 id: doc.id,
                 email: doc.data().email,
                 name: doc.data().displayName || doc.data().email,
-                photoURL: doc.data().photoURL
-            }));
+                photoURL: doc.data().photoURL,
+                status: doc.data().status
+            })).filter(e => e.status !== 'Terminated');
             setEditors(fetchedEditors);
         }, (error) => {
             console.error("Error fetching editors:", error);
@@ -608,7 +609,7 @@ const TeamLeaderDashboard = () => {
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} sx={{ flexDirection: { xs: 'column', lg: 'row' }, gap: 2, alignItems: { xs: 'stretch', lg: 'center' } }}>
 
                 <Box display="flex" gap={2} flexWrap="wrap" sx={{ justifyContent: { xs: 'center', lg: 'flex-start' }, width: { xs: '100%', lg: 'auto' } }}>
-                    <FormControl size="small" sx={{ minWidth: 120, width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper' }}>
+                    <FormControl size="small" sx={{ minWidth: 120, width: { xs: '100%', sm: 'auto' }, bgcolor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(5px)', borderRadius: 1 }}>
                         <InputLabel>Filter by Year</InputLabel>
                         <Select
                             value={filterYear}
@@ -624,7 +625,7 @@ const TeamLeaderDashboard = () => {
                             ))}
                         </Select>
                     </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper' }}>
+                    <FormControl size="small" sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' }, bgcolor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(5px)', borderRadius: 1 }}>
                         <InputLabel>Filter by Month</InputLabel>
                         <Select
                             value={filterMonth}
@@ -641,7 +642,7 @@ const TeamLeaderDashboard = () => {
                             ))}
                         </Select>
                     </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper' }}>
+                    <FormControl size="small" sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' }, bgcolor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(5px)', borderRadius: 1 }}>
                         <InputLabel>Filter by Status</InputLabel>
                         <Select
                             value={filterStatus}
@@ -658,7 +659,7 @@ const TeamLeaderDashboard = () => {
                             <MenuItem value="waiting-approval">Waiting Approval</MenuItem>
                         </Select>
                     </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper' }}>
+                    <FormControl size="small" sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' }, bgcolor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(5px)', borderRadius: 1 }}>
                         <InputLabel>Filter by Age</InputLabel>
                         <Select
                             value={filterAge}
@@ -675,7 +676,7 @@ const TeamLeaderDashboard = () => {
                             <MenuItem value={30}>Older than 30 days</MenuItem>
                         </Select>
                     </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 200, width: { xs: '100%', sm: 'auto' }, bgcolor: 'background.paper' }}>
+                    <FormControl size="small" sx={{ minWidth: 200, width: { xs: '100%', sm: 'auto' }, bgcolor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(5px)', borderRadius: 1 }}>
                         <InputLabel>Filter by Editor</InputLabel>
                         <Select
                             value={filterEditor}
@@ -725,9 +726,9 @@ const TeamLeaderDashboard = () => {
                 </Box>
             </Box>
 
-            <TableContainer component={Paper} sx={{ borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflowX: { xs: 'hidden', sm: 'auto' } }}>
+            <TableContainer component={Paper} sx={{ borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflowX: { xs: 'hidden', sm: 'auto' }, backgroundColor: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(10px)' }}>
                 <Table sx={{ tableLayout: { xs: 'fixed', sm: 'auto' } }}>
-                    <TableHead sx={{ bgcolor: '#f8f9fa' }}>
+                    <TableHead sx={{ bgcolor: 'rgba(248, 249, 250, 0.6)' }}>
                         <TableRow>
                             <TableCell sx={{ fontWeight: 600, px: { xs: 1, sm: 2 }, width: { xs: '60px', sm: 'auto' } }}>Image</TableCell>
                             <TableCell sx={{ fontWeight: 600, px: { xs: 1, sm: 2 } }}>Client / Order</TableCell>
