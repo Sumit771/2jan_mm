@@ -517,7 +517,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                 width: {
                     xs: '93vw',   // mobile
                     sm: '93vw',   // tablet
-                    md: '80vw',    // desktop
+                    md: '78vw',    // desktop
                 },
                 ml: {
                     md: 'auto',    // aligns content after navbar
@@ -809,16 +809,26 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                             {/* Image Container with Fixed Height */}
                                             <Box
                                                 sx={{
-                                                    width: { xs: '100%', sm: 180 },
+                                                    width: { xs: '100%', sm: 180, md: 210 },
                                                     height: { xs: 100, sm: 120 },
                                                     mb: 1,
                                                     borderRadius: 2,
                                                     overflow: 'hidden',
                                                     bgcolor: '#f5f5f5',
                                                     flexShrink: 0,
+                                                    position: 'relative',
+                                                    '&:hover': {
+                                                        overflow: 'visible',
+                                                        zIndex: 10,
+                                                    },
                                                     '&:hover img': {
+                                                        width: '70%',
+                                                        height: '100%',
                                                         objectFit: 'contain', // Show full image on hover
-                                                        transform: 'scale(1.05)'
+                                                        transform: 'scale(2.3)',
+                                                        boxShadow: 6,
+                                                        borderRadius: 1,
+                                                        bgcolor: 'background.paper'
                                                     }
                                                 }}
                                             >
@@ -1033,8 +1043,17 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                         <Typography variant="subtitle2" fontWeight={600} color="text.secondary">
                                             Completed Date
                                         </Typography>
-                                        <Typography variant="body1">
+                                        {/* <Typography variant="body1">
                                             {selectedOrder.completedAt.toDate().toLocaleString()}
+                                        </Typography> */}
+                                        <Typography variant="body1">
+                                            {selectedOrder.completedAt
+                                                ? selectedOrder.completedAt.toDate().toLocaleDateString('en-GB', {
+                                                    day: '2-digit',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                })
+                                                : '-'}
                                         </Typography>
                                     </Box>
                                 )}

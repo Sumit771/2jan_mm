@@ -280,25 +280,18 @@ const TeamLeaderDashboard = ({ highlightOrderId, onClearHighlight }) => {
                 const now = new Date();
                 const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-                // Calculate Max (Total Assigned in Current Month)
-                const assignedCount = orders.filter(o => {
-                    if (!o.assignedEditorEmails?.includes(editor.email)) return false;
-                    if (!o.createdAt?.toDate) return false;
-                    const d = o.createdAt.toDate();
-                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                }).length;
+                // Set fixed max range
+                setTargetMax(200);
 
-                setTargetMax(assignedCount);
-
-                // Set initial value from DB, clamped to max
+                // Set initial value from DB
                 const dbTarget = editor.targets?.[currentMonthKey] || 0;
-                setTargetValue(Math.min(dbTarget, assignedCount));
+                setTargetValue(dbTarget);
             } else {
                 setTargetValue(0);
                 setTargetMax(0);
             }
         }
-    }, [targetEditorId, targetDialogOpen, orders, editors]);
+    }, [targetEditorId, targetDialogOpen, editors]);
 
     const handleRateOrder = async (order, newValue) => {
         try {
@@ -1202,21 +1195,16 @@ const TeamLeaderDashboard = ({ highlightOrderId, onClearHighlight }) => {
                     {targetEditorId && (
                         <Box sx={{ px: 2 }}>
                             <Typography gutterBottom>
-                                Target: <strong>{targetValue}</strong> / {targetMax} Assigned Orders
+                                Target: <strong>{targetValue}</strong>
                             </Typography>
                             <Slider
                                 value={targetValue}
                                 onChange={(e, newValue) => setTargetValue(newValue)}
                                 valueLabelDisplay="auto"
                                 step={1}
-                                marks
-                                min={0}
+                                min={1}
                                 max={targetMax}
-                                disabled={targetMax === 0}
                             />
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                                * Based on orders assigned in {new Date().toLocaleString('default', { month: 'long' })}
-                            </Typography>
                         </Box>
                     )}
                 </DialogContent>

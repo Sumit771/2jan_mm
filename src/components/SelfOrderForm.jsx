@@ -128,7 +128,7 @@ const SelfOrderForm = ({ onOrderCreated }) => {
     };
 
     return (
-        <Box sx={{ width: { xs: '93vw', sm: '99vw', md: '100vw' }, mx: 'auto', mt: 4 }}>
+        <Box sx={{ width: { xs: '93vw', sm: '93vw', md: '75vw' }, mx: 'auto', mt: 4 }}>
             <Paper sx={{
                 p: 4,
                 borderRadius: 4,
@@ -147,14 +147,14 @@ const SelfOrderForm = ({ onOrderCreated }) => {
                 <Box component="form" onSubmit={handleSubmit}>
                     <Grid container spacing={3}>
                         <Grid item xs={12}>
-                            <GradientTextField fullWidth sx={{ width: { xs: '75vw', sm: '320px', md: '320px' } }} label="Client / Order Name" name="name" value={form.name} onChange={handleChange} required />
+                            <GradientTextField fullWidth sx={{ width: { xs: '75vw', sm: '400px', md: '400px' } }} label="Client / Order Name" name="name" value={form.name} onChange={handleChange} required />
                         </Grid>
 
-                        <Grid item xs={12}>
-                            <GradientTextField fullWidth sx={{ width: { xs: '75vw', sm: '320px', md: '320px' } }} label="Telecaller" name="telecaller" value={form.telecaller} onChange={handleChange} required />
+                        <Grid item xs={12} md={6}>
+                            <GradientTextField fullWidth sx={{ width: { xs: '75vw', sm: '400px', md: '400px' } }} label="Telecaller" name="telecaller" value={form.telecaller} onChange={handleChange} required />
                         </Grid>
-                        <Grid item xs={12}>
-                            <FormControl fullWidth sx={{ width: { xs: '75vw', sm: '320px', md: '320px' } }}>
+                        <Grid item xs={12} md={6}>
+                            <FormControl fullWidth sx={{ width: { xs: '75vw', sm: '400px', md: '400px' } }}>
                                 <InputLabel>Priority</InputLabel>
                                 <Select name="priority" value={form.priority} label="Priority" onChange={handleChange}>
                                     <MenuItem value="normal">Normal</MenuItem>
@@ -164,7 +164,7 @@ const SelfOrderForm = ({ onOrderCreated }) => {
                             </FormControl>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <GradientTextField sx={{ width: { xs: '75vw', sm: '320px', md: '320px' }, height: '18vh' }} label="Remark" name="remark" value={form.remark} onChange={handleChange} multiline rows={7} />
+                            <GradientTextField sx={{ width: { xs: '75vw', sm: '400px', md: '400px' }, height: '18vh' }} label="Remark" name="remark" value={form.remark} onChange={handleChange} multiline rows={7} />
                         </Grid>
                         {/* 
                         <Grid item >
@@ -181,7 +181,7 @@ const SelfOrderForm = ({ onOrderCreated }) => {
                             />
                         </Grid> */}
 
-                        <Grid item xs={12}>
+                        <Grid item xs={12} md={6}>
                             <Typography fontWeight={300} mb={1}>Sample Image</Typography>
                             <RadioGroup row name="imageType" value={form.imageType} onChange={handleChange}>
                                 <FormControlLabel value="upload" control={<Radio />} label="Upload" />
