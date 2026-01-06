@@ -10,11 +10,11 @@ export default defineConfig({
   emptyOutDir: true
 },
 
-  server: {
-    allowedHosts: [
-      'rindless-farah-undeceased.ngrok-free.dev'
-    ]
-  }
+  // server: {
+  //   allowedHosts: [
+  //     'rindless-farah-undeceased.ngrok-free.dev'
+  //   ]
+  // }
 
   //base: '/mm/',
 })
