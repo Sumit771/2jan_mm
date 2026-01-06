@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, arrayUnion, arrayRemove, getDoc, getDocs, addDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
@@ -35,9 +36,55 @@ import {
     Avatar,
     LinearProgress
 } from '@mui/material';
-import { Lock as LockIcon, Close as CloseIcon, CheckCircle as CheckCircleIcon, Search as SearchIcon, WarningAmber as WarningIcon } from '@mui/icons-material';
+import { Lock as LockIcon, Close as CloseIcon, CheckCircle as CheckCircleIcon, Search as SearchIcon, WarningAmber as WarningIcon, Edit as EditIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 //import EditorStats from './EditorStats';
 import MonthlyTargetProgress from './MonthlyTargetProgress';
+
+const EditorEditOrderDialog = ({ open, onClose, order, onSave }) => {
+    const [form, setForm] = useState({ name: '', telecaller: '', remark: '', sampleImageUrl: '' });
+    const [file, setFile] = useState(null);
+
+    useEffect(() => {
+        if (order) {
+            setForm({
+                name: order.name || '',
+                telecaller: order.telecaller || '',
+                remark: order.remark || '',
+                sampleImageUrl: order.sampleImageUrl || ''
+            });
+            setFile(null);
+        }
+    }, [order]);
+
+    const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+    const handleSave = () => {
+        onSave(form, file);
+    };
+
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+            <DialogTitle>Edit Order Details</DialogTitle>
+            <DialogContent>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                    <TextField label="Client/Order Name" name="name" value={form.name} onChange={handleChange} fullWidth />
+                    <TextField label="Telecaller" name="telecaller" value={form.telecaller} onChange={handleChange} fullWidth />
+                    <TextField label="Remark" name="remark" value={form.remark} onChange={handleChange} fullWidth multiline rows={3} />
+                    <TextField label="Image URL" name="sampleImageUrl" value={form.sampleImageUrl} onChange={handleChange} fullWidth />
+                    <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />} fullWidth>
+                        Upload New Image
+                        <input type="file" hidden onChange={(e) => setFile(e.target.files[0])} />
+                    </Button>
+                    {file && <Typography variant="caption">{file.name}</Typography>}
+                </Box>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={handleSave} variant="contained">Save Changes</Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
 
 const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
     const { user } = useAuth();
@@ -63,6 +110,9 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
     const [messages, setMessages] = useState({}); // { orderId: 'message' }
     const [sending, setSending] = useState({}); // { orderId: boolean }
     const [canSeeStats, setCanSeeStats] = useState(false);
+    const [canAutoApprove, setCanAutoApprove] = useState(false);
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [editingOrder, setEditingOrder] = useState(null);
     const isInitialMount = useRef(true);
 
     // Listen for user permissions (allowSeeStats)
@@ -74,6 +124,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
             if (docSnapshot.exists()) {
                 const userData = docSnapshot.data();
                 setCanSeeStats(userData.allowSeeStats === true);
+                setCanAutoApprove(userData.autoApproveEdits === true);
             }
         }, (error) => {
             console.error("Error fetching user permissions:", error);
@@ -301,6 +352,63 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
     const handleCloseDetails = () => {
         setDetailsOpen(false);
         setSelectedOrder(null);
+    };
+
+    const handleEditClick = (order) => {
+        setEditingOrder(order);
+        setEditDialogOpen(true);
+    };
+
+    const handleEditSave = async (formData, file) => {
+        if (!editingOrder) return;
+        try {
+            let imageUrl = formData.sampleImageUrl;
+            if (file) {
+                const storageRef = ref(storage, `samples/${Date.now()}_${file.name}`);
+                await uploadBytes(storageRef, file);
+                imageUrl = await getDownloadURL(storageRef);
+            }
+
+            const changes = {
+                name: formData.name,
+                telecaller: formData.telecaller,
+                remark: formData.remark,
+                sampleImageUrl: imageUrl
+            };
+
+            const orderRef = doc(db, 'orders', editingOrder.id);
+            const editorName = user.displayName || user.email.split('@')[0] || 'Unknown';
+
+            if (canAutoApprove) {
+                // Direct update
+                await updateDoc(orderRef, changes);
+                // Log modification
+                try {
+                    await addDoc(collection(db, `orders/${editingOrder.id}/history`), {
+                        action: 'edit',
+                        editedBy: user.email,
+                        editorName: editorName,
+                        changes: changes,
+                        timestamp: serverTimestamp(),
+                        autoApproved: true
+                    });
+                } catch (historyError) {
+                    console.error("Error logging history:", historyError);
+                }
+                toast.success("Order updated successfully!");
+            } else {
+                // Send for approval
+                await updateDoc(orderRef, {
+                    hasPendingEdit: true,
+                    pendingEdit: { changes, editorEmail: user.email, editorName: editorName, timestamp: new Date() }
+                });
+                toast.info("Changes sent to Team Leader for approval.");
+            }
+            setEditDialogOpen(false);
+        } catch (error) {
+            console.error("Error updating order:", error);
+            toast.error("Failed to update order.");
+        }
     };
 
     const filteredOrders = orders.filter(order => {
@@ -624,6 +732,12 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                                 </Box>
                                             )}
 
+                                            {order.hasPendingEdit && (
+                                                <Alert severity="info" sx={{ mb: 1, py: 0, fontSize: '0.75rem' }}>
+                                                    Edit pending approval
+                                                </Alert>
+                                            )}
+
                                             <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                                                 {isBroadcast(order) ? (
                                                     <Chip
@@ -767,7 +881,7 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                                 </Box>
                                             </Box>
 
-                                            {order.status === 'pending' && !order.isSelfOrder ? (
+                                            {order.status === 'pending' && !order.isSelfOrder && !order.hasPendingEdit ? (
                                                 <Button
                                                     variant="contained"
                                                     fullWidth
@@ -784,20 +898,32 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                                     Accept Order
                                                 </Button>
                                             ) : (
-                                                <Button
-                                                    variant="contained"
-                                                    fullWidth
-                                                    onClick={() => handleOpenDetails(order)}
-                                                    sx={{
-                                                        mt: 'auto', // Ensures button stays at bottom
-                                                        background: 'linear-gradient(135deg,#667eea,#764ba2)',
-                                                        fontSize: '0.75rem',
-                                                        textTransform: 'none',
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    View Details
-                                                </Button>
+                                                <Box display="flex" gap={1} mt="auto">
+                                                    <Button
+                                                        variant="contained"
+                                                        fullWidth
+                                                        onClick={() => handleOpenDetails(order)}
+                                                        sx={{
+                                                            background: 'linear-gradient(135deg,#667eea,#764ba2)',
+                                                            fontSize: '0.75rem',
+                                                            textTransform: 'none',
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        Details
+                                                    </Button>
+                                                    <Button
+                                                        variant="outlined"
+                                                        onClick={() => handleEditClick(order)}
+                                                        disabled={order.hasPendingEdit}
+                                                        sx={{
+                                                            minWidth: '40px',
+                                                            px: 1
+                                                        }}
+                                                    >
+                                                        <EditIcon fontSize="small" />
+                                                    </Button>
+                                                </Box>
                                             )}
                                         </Paper>
                                     </Grid>)
@@ -942,6 +1068,13 @@ const EditorDashboard = ({ highlightOrderId, onClearHighlight }) => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <EditorEditOrderDialog
+                open={editDialogOpen}
+                onClose={() => setEditDialogOpen(false)}
+                order={editingOrder}
+                onSave={handleEditSave}
+            />
         </Container>
     );
 };

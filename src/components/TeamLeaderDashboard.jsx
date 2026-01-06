@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, serverTimestamp, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, serverTimestamp, where, getDocs, deleteDoc, writeBatch, addDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { db } from '../firebase';
 import UserManagement from './UserManagement';
@@ -45,7 +45,7 @@ import {
     LinearProgress,
     Slider
 } from '@mui/material';
-import { Person as PersonIcon, AdminPanelSettings as AdminIcon, Group as GroupIcon, PictureAsPdf as PdfIcon, Edit as EditIcon, Delete as DeleteIcon, CloudUpload as CloudUploadIcon, Close as CloseIcon, VerifiedUser as VerifiedUserIcon, Check as CheckIcon, EmojiEvents as TrophyIcon, TrackChanges as TargetIcon } from '@mui/icons-material';
+import { Person as PersonIcon, AdminPanelSettings as AdminIcon, Group as GroupIcon, PictureAsPdf as PdfIcon, Edit as EditIcon, Delete as DeleteIcon, CloudUpload as CloudUploadIcon, Close as CloseIcon, VerifiedUser as VerifiedUserIcon, Check as CheckIcon, EmojiEvents as TrophyIcon, TrackChanges as TargetIcon, RateReview as ReviewIcon } from '@mui/icons-material';
 
 const EditOrderDialog = ({ open, onClose, order, editors, onSave, onDelete }) => {
     const theme = useTheme();
@@ -196,6 +196,9 @@ const TeamLeaderDashboard = ({ highlightOrderId, onClearHighlight }) => {
     const [targetEditorId, setTargetEditorId] = useState('');
     const [targetValue, setTargetValue] = useState(0);
     const [targetMax, setTargetMax] = useState(0);
+
+    const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+    const [reviewOrder, setReviewOrder] = useState(null);
 
     // Cleanup notifications older than 12 hours
     useEffect(() => {
@@ -522,6 +525,74 @@ const TeamLeaderDashboard = ({ highlightOrderId, onClearHighlight }) => {
         } catch (error) {
             console.error(error);
             toast.error("Failed to update target");
+        }
+    };
+
+    const handleReviewClick = (order) => {
+        setReviewOrder(order);
+        setReviewDialogOpen(true);
+    };
+
+    const handleApproveEdit = async (trustEditor) => {
+        if (!reviewOrder || !reviewOrder.pendingEdit) return;
+
+        try {
+            let { changes, editorEmail, editorName } = reviewOrder.pendingEdit;
+
+            if (!changes) {
+                const { editorEmail: e, editorName: n, timestamp, ...rest } = reviewOrder.pendingEdit;
+                changes = rest;
+            }
+
+            const safeEditorEmail = editorEmail || 'unknown';
+            const safeEditorName = editorName || 'Unknown';
+
+            const orderRef = doc(db, 'orders', reviewOrder.id);
+
+            // 1. Apply changes and remove pending flags
+            await updateDoc(orderRef, {
+                ...changes,
+                hasPendingEdit: false,
+                pendingEdit: null
+            });
+
+            // 2. Log modification
+            try {
+                await addDoc(collection(db, `orders/${reviewOrder.id}/history`), {
+                    action: 'edit_approved',
+                    editedBy: safeEditorEmail,
+                    editorName: safeEditorName,
+                    approvedBy: user.email,
+                    changes: changes,
+                    timestamp: serverTimestamp()
+                });
+            } catch (historyError) {
+                console.error("Error logging history:", historyError);
+            }
+
+            // 3. If trusting editor, update user profile
+            if (trustEditor) {
+                const editor = editors.find(e => e.email === safeEditorEmail);
+                if (editor) {
+                    try {
+                        await updateDoc(doc(db, 'users', editor.id), {
+                            autoApproveEdits: true
+                        });
+                        toast.success(`Approved & ${safeEditorName} is now trusted for future edits.`);
+                    } catch (userError) {
+                        console.error("Error updating user profile:", userError);
+                        toast.warning(`Order approved, but failed to update editor permissions.`);
+                    }
+                }
+            } else {
+                toast.success("Edit approved successfully.");
+            }
+
+            setReviewDialogOpen(false);
+            setReviewOrder(null);
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to approve edit.");
         }
     };
 
@@ -877,6 +948,14 @@ const TeamLeaderDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                                 sx={{ height: 20, fontSize: '0.65rem' }}
                                             />
                                         )}
+                                        {order.hasPendingEdit && (
+                                            <Chip
+                                                label="Edit Pending"
+                                                size="small"
+                                                color="secondary"
+                                                sx={{ height: 20, fontSize: '0.65rem' }}
+                                            />
+                                        )}
                                     </Box>
                                 </TableCell>
                                 <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
@@ -920,7 +999,18 @@ const TeamLeaderDashboard = ({ highlightOrderId, onClearHighlight }) => {
                                     </Typography>
                                 </TableCell>
                                 <TableCell align="right" sx={{ px: { xs: 1, sm: 2 } }}>
-                                    {order.status === 'waiting-approval' ? (
+                                    {order.hasPendingEdit ? (
+                                        <Button
+                                            variant="contained"
+                                            color="info"
+                                            size="small"
+                                            onClick={() => handleReviewClick(order)}
+                                            startIcon={<ReviewIcon />}
+                                            sx={{ fontSize: '0.7rem', py: 0.5 }}
+                                        >
+                                            Review
+                                        </Button>
+                                    ) : order.status === 'waiting-approval' ? (
                                         <Button
                                             variant="contained"
                                             color="warning"
@@ -1135,6 +1225,44 @@ const TeamLeaderDashboard = ({ highlightOrderId, onClearHighlight }) => {
                     <Button onClick={handleSaveTarget} variant="contained" disabled={!targetEditorId}>
                         Save Target
                     </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Review Edit Dialog */}
+            <Dialog open={reviewDialogOpen} onClose={() => setReviewDialogOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Review Edit Request</DialogTitle>
+                <DialogContent>
+                    {reviewOrder && reviewOrder.pendingEdit && (
+                        <>
+                            <DialogContentText sx={{ mb: 2 }}>
+                                Editor <strong>{reviewOrder.pendingEdit.editorName}</strong> wants to modify this order.
+                            </DialogContentText>
+                            <Box sx={{ mt: 2 }}>
+                                {(() => {
+                                    const changes = reviewOrder.pendingEdit.changes || (({ editorEmail, editorName, timestamp, ...rest }) => rest)(reviewOrder.pendingEdit);
+                                    return Object.keys(changes).map(key => (
+                                        <Box key={key} sx={{ mb: 1, p: 1, border: '1px solid #eee', borderRadius: 1 }}>
+                                            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>{key}</Typography>
+                                            <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+                                                <Typography sx={{ textDecoration: 'line-through', color: 'error.main', fontSize: '0.9rem' }}>
+                                                    {reviewOrder[key] || '(empty)'}
+                                                </Typography>
+                                                <Typography>→</Typography>
+                                                <Typography sx={{ color: 'success.main', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                                    {changes[key]}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                    ));
+                                })()}
+                            </Box>
+                        </>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ flexDirection: 'column', gap: 1, p: 2 }}>
+                    <Button fullWidth variant="contained" onClick={() => handleApproveEdit(false)}>Approve This Edit Only</Button>
+                    <Button fullWidth variant="contained" color="success" onClick={() => handleApproveEdit(true)}>Approve & Auto-Approve Future Edits</Button>
+                    <Button fullWidth color="inherit" onClick={() => setReviewDialogOpen(false)}>Cancel</Button>
                 </DialogActions>
             </Dialog>
         </Container>
